@@ -1,3 +1,3 @@
 
-export type ViewState = 'ONLINE_SERVICE' | 'CLIENT_MOBILE_APP' | 'SIMULATOR';
+export type ViewState = 'ONLINE_SERVICE' | 'CLIENT_MOBILE_APP' | 'SIMULATOR' | 'PROCESS_MANAGEMENT';
 

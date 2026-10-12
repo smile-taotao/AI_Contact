@@ -4,8 +4,9 @@ import TopNav from './components/TopNav';
 import SimulatorWorkbench from './components/SimulatorWorkbench';
 import OnlineCustomerService from './components/OnlineCustomerService';
 import ClientMobileApp from './components/ClientMobileApp';
+import ProcessManagementWorkbench from './components/process_management/ProcessManagementWorkbench';
 import { ViewState } from './types';
-import { Headphones, Smartphone, PhoneCall } from 'lucide-react';
+import { Headphones, Smartphone, PhoneCall, Workflow } from 'lucide-react';
 
 function App() {
   const [currentView, setCurrentView] = useState<ViewState>('ONLINE_SERVICE');
@@ -25,6 +26,11 @@ function App() {
       title: '智能呼入工作台',
       category: '智能呼入工作台',
       icon: PhoneCall,
+    },
+    PROCESS_MANAGEMENT: {
+      title: '辅助流程管理',
+      category: '辅助流程中台',
+      icon: Workflow,
     },
   };
 
@@ -49,7 +55,7 @@ function App() {
             </span>
           </div>
 
-          {/* Quick Tabs: Three Core Pages */}
+          {/* Quick Tabs: Core Pages */}
           <div className="flex items-center space-x-2 text-[12px]">
             <span className="text-slate-400 mr-1 text-[11px]">快捷切换:</span>
             
@@ -88,6 +94,18 @@ function App() {
               <div className={`w-1.5 h-1.5 rounded-full mr-1.5 ${currentView === 'SIMULATOR' ? 'bg-blue-500' : 'bg-slate-300'}`}></div>
               <span>智能呼入工作台</span>
             </button>
+
+            <button
+              onClick={() => setCurrentView('PROCESS_MANAGEMENT')}
+              className={`flex items-center px-2.5 py-1 rounded transition-colors cursor-pointer border text-xs ${
+                currentView === 'PROCESS_MANAGEMENT'
+                  ? 'bg-blue-50 text-blue-600 border-blue-200 font-medium'
+                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              <div className={`w-1.5 h-1.5 rounded-full mr-1.5 ${currentView === 'PROCESS_MANAGEMENT' ? 'bg-blue-500' : 'bg-slate-300'}`}></div>
+              <span>辅助流程管理</span>
+            </button>
           </div>
         </div>
 
@@ -101,6 +119,9 @@ function App() {
           </div>
           <div className={`h-full w-full ${currentView === 'SIMULATOR' ? 'flex flex-col' : 'hidden'}`}>
             <SimulatorWorkbench />
+          </div>
+          <div className={`h-full w-full ${currentView === 'PROCESS_MANAGEMENT' ? 'flex flex-col' : 'hidden'}`}>
+            <ProcessManagementWorkbench />
           </div>
         </div>
       </div>

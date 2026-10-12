@@ -356,7 +356,6 @@ export default function OnlineCustomerService({ onNavigateToMobile }: OnlineCust
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showQuickPhrases, setShowQuickPhrases] = useState(false);
   const [showEndModal, setShowEndModal] = useState(false);
-  const [showAIAssistant, setShowAIAssistant] = useState(false);
   const [isSilentAgent, setIsSilentAgent] = useState(false);
   const [isManaged, setIsManaged] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -1583,22 +1582,6 @@ export default function OnlineCustomerService({ onNavigateToMobile }: OnlineCust
 
 
       {/* ===================== Floating Elements matching screenshot ===================== */}
-      
-      {/* Floating AI Assistant icon button at the bottom right matching screenshot */}
-      <div className="fixed bottom-6 right-20 z-40 flex flex-col items-center">
-        <button
-          onClick={() => setShowAIAssistant(prev => !prev)}
-          className="flex flex-col items-center bg-white border border-blue-200 text-blue-600 hover:text-blue-700 shadow-xl rounded-full p-2.5 hover:scale-105 transition-all group"
-          title="展开AI智能问答助手"
-        >
-          <div className="w-7 h-7 rounded-full bg-blue-500 text-white flex items-center justify-center mb-0.5 group-hover:bg-blue-600">
-            <Bot size={16} />
-          </div>
-          <span className="text-[10px] font-bold text-slate-700 flex items-center">
-            <span className="text-[8px] text-blue-500 mr-0.5">▲</span> AI助手
-          </span>
-        </button>
-      </div>
 
       {/* Floating IM 99+ Badge at the far bottom right matching screenshot */}
       <div className="fixed bottom-3 right-5 z-40">
@@ -1704,41 +1687,6 @@ export default function OnlineCustomerService({ onNavigateToMobile }: OnlineCust
               >
                 确认结束并清空
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* AI Assistant Popover Drawer */}
-      {showAIAssistant && (
-        <div className="fixed bottom-24 right-20 w-80 bg-white rounded-xl shadow-2xl border border-blue-200 z-50 overflow-hidden flex flex-col max-h-[420px] animate-in fade-in slide-in-from-bottom-5">
-          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-3 flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Sparkles size={16} />
-              <span className="font-bold text-xs">AI 实时辅助与策略推荐</span>
-            </div>
-            <button onClick={() => setShowAIAssistant(false)} className="text-white/80 hover:text-white">
-              <X size={14} />
-            </button>
-          </div>
-          <div className="p-3.5 space-y-3 overflow-y-auto custom-scrollbar text-xs">
-            <div className="bg-blue-50/80 p-2.5 rounded-lg border border-blue-100 text-slate-700">
-              <div className="font-bold text-blue-700 mb-1 flex items-center">
-                <CheckCircle2 size={13} className="mr-1 text-blue-600" />
-                客户意图分析：卡片受限无法转账
-              </div>
-              <p className="text-[11px] text-slate-600 leading-relaxed">
-                概率预测：因【长期未发生交易】或【涉诈名单库规则】转为仅柜面，置信度 96.4%。
-              </p>
-            </div>
-            <div className="bg-amber-50/80 p-2.5 rounded-lg border border-amber-200 text-slate-700">
-              <div className="font-bold text-amber-800 mb-1">
-                智能跟进建议
-              </div>
-              <p className="text-[11px] text-slate-600">
-                1. 询问报错截图或错误码；<br />
-                2. 优先推荐客户在手机银行【我的-安全中心】刷脸自主解控。
-              </p>
             </div>
           </div>
         </div>

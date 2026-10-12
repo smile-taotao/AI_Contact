@@ -2,7 +2,8 @@ import React from 'react';
 import { 
   Headphones,
   Smartphone,
-  PhoneCall
+  PhoneCall,
+  Workflow
 } from 'lucide-react';
 import { ViewState } from '../types';
 
@@ -45,6 +46,14 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView }) => {
       view: 'SIMULATOR',
       badge: '语音席',
       description: '全流程呼叫与话术辅助'
+    },
+    { 
+      id: 'process_management', 
+      label: '辅助流程管理', 
+      icon: Workflow, 
+      view: 'PROCESS_MANAGEMENT',
+      badge: '配置',
+      description: '可视化流转与卡片编排'
     },
   ];
 
