@@ -42,10 +42,10 @@ const TopNav: React.FC<TopNavProps> = ({ agentStatus: initialStatus = '未登录
           </div>
         </div>
 
-        {/* 协同服务 */}
+        {/* 客户来电 */}
         <div className="flex items-center space-x-1 cursor-pointer hover:text-blue-100 transition-colors">
           <PhoneCall size={14} className="stroke-[2.2]" />
-          <span className="font-medium text-[13px]">协同服务</span>
+          <span className="font-medium text-[13px]">客户来电</span>
         </div>
 
         {/* 实时质检 */}

@@ -5,13 +5,21 @@ import SimulatorWorkbench from './components/SimulatorWorkbench';
 import OnlineCustomerService from './components/OnlineCustomerService';
 import ClientMobileApp from './components/ClientMobileApp';
 import ProcessManagementWorkbench from './components/process_management/ProcessManagementWorkbench';
+import VoiceWorkbench from './components/VoiceWorkbench';
 import { ViewState } from './types';
-import { Headphones, Smartphone, PhoneCall, Workflow } from 'lucide-react';
+import { Headphones, Smartphone, PhoneCall, Workflow, Mic } from 'lucide-react';
 
 function App() {
-  const [currentView, setCurrentView] = useState<ViewState>('ONLINE_SERVICE');
+  // Default to the newly implemented 1:1 Voice Customer Service Workbench
+  const [currentView, setCurrentView] = useState<ViewState>('VOICE_WORKBENCH');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   const pageMeta: Record<ViewState, { title: string; category: string; icon: any }> = {
+    VOICE_WORKBENCH: {
+      title: '智能语音工作台',
+      category: '智能语音工作台',
+      icon: Mic,
+    },
     ONLINE_SERVICE: {
       title: '智能在线客服',
       category: '智能在线工作台',
@@ -34,83 +42,109 @@ function App() {
     },
   };
 
-  const currentMeta = pageMeta[currentView] || pageMeta.ONLINE_SERVICE;
+  const currentMeta = pageMeta[currentView] || pageMeta.VOICE_WORKBENCH;
 
   return (
     <div className="flex h-screen bg-[#f1f5f9] font-sans text-slate-900 overflow-hidden">
-      {/* Left Sidebar */}
-      <Sidebar currentView={currentView} onChangeView={setCurrentView} />
+      {/* Left Sidebar with collapse / expand support */}
+      <Sidebar 
+        currentView={currentView} 
+        onChangeView={setCurrentView}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={() => setIsSidebarCollapsed(prev => !prev)}
+      />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+        {/* Top Call Center Blue Bar */}
         <TopNav />
 
-        {/* Breadcrumb / Top Bar Area */}
-        <div className="bg-white border-b border-slate-200 px-5 py-2.5 text-[13px] text-slate-600 flex items-center justify-between flex-shrink-0 select-none">
-          <div className="flex items-center space-x-2">
-            <span className="text-slate-500">{currentMeta.category}</span>
-            <span className="text-slate-400">/</span>
-            <span className="text-blue-600 font-semibold flex items-center space-x-1.5">
-              <span>{currentMeta.title}</span>
-            </span>
+        {/* Breadcrumb / Top Bar Area for other views */}
+        {currentView !== 'VOICE_WORKBENCH' && (
+          <div className="bg-white border-b border-slate-200 px-4 py-2 text-[12.5px] text-slate-600 flex items-center justify-between flex-shrink-0 select-none">
+            <div className="flex items-center space-x-2">
+              <span className="text-slate-500">{currentMeta.category}</span>
+              <span className="text-slate-400">/</span>
+              <span className="text-blue-600 font-semibold flex items-center space-x-1.5">
+                <span>{currentMeta.title}</span>
+              </span>
+            </div>
+
+            {/* Quick Tabs: Core Pages */}
+            <div className="flex items-center space-x-1.5 text-[11.5px]">
+              <span className="text-slate-400 mr-1 text-[11px]">快捷切换:</span>
+              
+              <button
+                onClick={() => setCurrentView('VOICE_WORKBENCH')}
+                className={`flex items-center px-2 py-0.5 rounded transition-colors cursor-pointer border text-xs ${
+                  currentView === 'VOICE_WORKBENCH'
+                    ? 'bg-blue-50 text-blue-600 border-blue-200 font-medium'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                <div className={`w-1.5 h-1.5 rounded-full mr-1.5 ${currentView === 'VOICE_WORKBENCH' ? 'bg-blue-500' : 'bg-slate-300'}`}></div>
+                <span>智能语音工作台</span>
+              </button>
+
+              <button
+                onClick={() => setCurrentView('ONLINE_SERVICE')}
+                className={`flex items-center px-2 py-0.5 rounded transition-colors cursor-pointer border text-xs ${
+                  currentView === 'ONLINE_SERVICE'
+                    ? 'bg-blue-50 text-blue-600 border-blue-200 font-medium'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                <div className={`w-1.5 h-1.5 rounded-full mr-1.5 ${currentView === 'ONLINE_SERVICE' ? 'bg-blue-500' : 'bg-slate-300'}`}></div>
+                <span>智能在线客服</span>
+              </button>
+
+              <button
+                onClick={() => setCurrentView('CLIENT_MOBILE_APP')}
+                className={`flex items-center px-2 py-0.5 rounded transition-colors cursor-pointer border text-xs ${
+                  currentView === 'CLIENT_MOBILE_APP'
+                    ? 'bg-blue-50 text-blue-600 border-blue-200 font-medium'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                <div className={`w-1.5 h-1.5 rounded-full mr-1.5 ${currentView === 'CLIENT_MOBILE_APP' ? 'bg-blue-500' : 'bg-slate-300'}`}></div>
+                <span>客户端手机app</span>
+              </button>
+
+              <button
+                onClick={() => setCurrentView('SIMULATOR')}
+                className={`flex items-center px-2 py-0.5 rounded transition-colors cursor-pointer border text-xs ${
+                  currentView === 'SIMULATOR'
+                    ? 'bg-blue-50 text-blue-600 border-blue-200 font-medium'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                <div className={`w-1.5 h-1.5 rounded-full mr-1.5 ${currentView === 'SIMULATOR' ? 'bg-blue-500' : 'bg-slate-300'}`}></div>
+                <span>智能呼入工作台</span>
+              </button>
+
+              <button
+                onClick={() => setCurrentView('PROCESS_MANAGEMENT')}
+                className={`flex items-center px-2 py-0.5 rounded transition-colors cursor-pointer border text-xs ${
+                  currentView === 'PROCESS_MANAGEMENT'
+                    ? 'bg-blue-50 text-blue-600 border-blue-200 font-medium'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                <div className={`w-1.5 h-1.5 rounded-full mr-1.5 ${currentView === 'PROCESS_MANAGEMENT' ? 'bg-blue-500' : 'bg-slate-300'}`}></div>
+                <span>辅助流程管理</span>
+              </button>
+            </div>
           </div>
+        )}
 
-          {/* Quick Tabs: Core Pages */}
-          <div className="flex items-center space-x-2 text-[12px]">
-            <span className="text-slate-400 mr-1 text-[11px]">快捷切换:</span>
-            
-            <button
-              onClick={() => setCurrentView('ONLINE_SERVICE')}
-              className={`flex items-center px-2.5 py-1 rounded transition-colors cursor-pointer border text-xs ${
-                currentView === 'ONLINE_SERVICE'
-                  ? 'bg-blue-50 text-blue-600 border-blue-200 font-medium'
-                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-              }`}
-            >
-              <div className={`w-1.5 h-1.5 rounded-full mr-1.5 ${currentView === 'ONLINE_SERVICE' ? 'bg-blue-500' : 'bg-slate-300'}`}></div>
-              <span>智能在线客服</span>
-            </button>
-
-            <button
-              onClick={() => setCurrentView('CLIENT_MOBILE_APP')}
-              className={`flex items-center px-2.5 py-1 rounded transition-colors cursor-pointer border text-xs ${
-                currentView === 'CLIENT_MOBILE_APP'
-                  ? 'bg-blue-50 text-blue-600 border-blue-200 font-medium'
-                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-              }`}
-            >
-              <div className={`w-1.5 h-1.5 rounded-full mr-1.5 ${currentView === 'CLIENT_MOBILE_APP' ? 'bg-blue-500' : 'bg-slate-300'}`}></div>
-              <span>客户端手机app</span>
-            </button>
-
-            <button
-              onClick={() => setCurrentView('SIMULATOR')}
-              className={`flex items-center px-2.5 py-1 rounded transition-colors cursor-pointer border text-xs ${
-                currentView === 'SIMULATOR'
-                  ? 'bg-blue-50 text-blue-600 border-blue-200 font-medium'
-                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-              }`}
-            >
-              <div className={`w-1.5 h-1.5 rounded-full mr-1.5 ${currentView === 'SIMULATOR' ? 'bg-blue-500' : 'bg-slate-300'}`}></div>
-              <span>智能呼入工作台</span>
-            </button>
-
-            <button
-              onClick={() => setCurrentView('PROCESS_MANAGEMENT')}
-              className={`flex items-center px-2.5 py-1 rounded transition-colors cursor-pointer border text-xs ${
-                currentView === 'PROCESS_MANAGEMENT'
-                  ? 'bg-blue-50 text-blue-600 border-blue-200 font-medium'
-                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-              }`}
-            >
-              <div className={`w-1.5 h-1.5 rounded-full mr-1.5 ${currentView === 'PROCESS_MANAGEMENT' ? 'bg-blue-500' : 'bg-slate-300'}`}></div>
-              <span>辅助流程管理</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Dynamic Content - keep alive to preserve session and view states between agent and mobile client */}
+        {/* Dynamic Content - Keep alive to preserve all session states */}
         <div className="flex-1 overflow-hidden relative">
+          {/* New 1:1 Voice Customer Service Workbench */}
+          <div className={`h-full w-full ${currentView === 'VOICE_WORKBENCH' ? 'flex flex-col' : 'hidden'}`}>
+            <VoiceWorkbench />
+          </div>
+
+          {/* Existing Unaltered Pages */}
           <div className={`h-full w-full ${currentView === 'ONLINE_SERVICE' ? 'flex flex-col' : 'hidden'}`}>
             <OnlineCustomerService onNavigateToMobile={() => setCurrentView('CLIENT_MOBILE_APP')} />
           </div>
