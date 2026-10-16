@@ -16,7 +16,12 @@ import {
   Edit3,
   ChevronDown,
   ChevronRight,
-  X
+  X,
+  Flame,
+  History,
+  ClipboardCheck,
+  NotebookPen,
+  Volume2
 } from 'lucide-react';
 
 interface AsrMessage {
@@ -31,6 +36,7 @@ interface KnowledgeItem {
   title: string;
   speech: string;
   category: string;
+  matchScore?: string;
   views: number;
 }
 
@@ -79,60 +85,107 @@ export const SmartVoiceAssistantModal: React.FC = () => {
   // 6. Pre-call summary (前情摘要)
   const preCallSummary = `该客户在近一个月内语音进线3笔，视频进线1笔，热线进线2笔，下发1笔咨询工单，0笔投诉工单。查询当日手机银行、2笔交易异常记录。结合数据分析，当前可能咨询信用卡跨行还款限额及免息期相关问题。【AI提示：请核实客户身份及卡号有效性】`;
 
-  // 7. Knowledge Recommendations (知识推荐)
+  // 7. Knowledge Recommendations (知识推荐) - 点击按钮直接推荐5条相关知识，直观看到5条标题，点击展开显示推荐话术且5条标题不隐藏
   const [isRefreshingKnowledge, setIsRefreshingKnowledge] = useState(false);
-  const [knowledgeList] = useState<KnowledgeItem[]>([
-    {
-      id: 'k1',
-      title: '信用卡跨行还款限额与到账时效规定',
-      category: '还款业务 / 限额规则',
-      views: 1240,
-      speech: '张先生，他行借记卡转入我行信用卡，单笔限额一般为5万元，单日累计最高20万元；银联系统实时到账，夜间大额可能顺延至次日早上6点前入账。'
-    },
-    {
-      id: 'k2',
-      title: '信用卡账单分期申请条件及当期利息优惠',
-      category: '分期业务 / 优惠政策',
-      views: 980,
-      speech: '您当前信用卡处于正常还款期，可办理3期、6期分期，目前享有分期手续费5折优惠券，折算后单期费率仅0.32%。'
-    },
-    {
-      id: 'k3',
-      title: '跨行还款扣款成功但未入账处理指引',
-      category: '异常处理 / 资金核对',
-      views: 750,
-      speech: '若您他行卡已扣款但信用卡未显示入账，通常是由于跨行清算在途，银联对账完成后会补入或原路退回，请您保留转账凭证。'
-    },
-    {
-      id: 'k4',
-      title: '手机银行快捷自动还款签约流程',
-      category: '自助渠道 / 签约指南',
-      views: 620,
-      speech: '建议您在手机银行APP签约自动还款服务，可支持绑定本行及主流他行借记卡，在到期还款日自动全额划扣，避免逾期风险。'
-    },
-    {
-      id: 'k5',
-      title: '临时额度到期还款规则及清偿说明',
-      category: '额度管理 / 临时额度',
-      views: 510,
-      speech: '若您本期使用了临时额度，请注意临时额度不享受循环信用，到期后将全额计入当期最低还款额中，需按期全额结清。'
-    }
-  ]);
+  const [recommendationBatch, setRecommendationBatch] = useState<number>(0);
+  const [copiedSpeechId, setCopiedSpeechId] = useState<string | null>(null);
+
+  const knowledgePools: KnowledgeItem[][] = [
+    // 推荐批次 1 (还款与限额规则)
+    [
+      {
+        id: 'k1',
+        title: '信用卡跨行还款限额与到账时效规定',
+        category: '还款业务 / 限额规则',
+        matchScore: '99%',
+        views: 1240,
+        speech: '张先生，他行借记卡转入我行信用卡，单笔限额一般为5万元，单日累计最高20万元；银联系统实时到账，夜间大额可能顺延至次日早上6点前入账。'
+      },
+      {
+        id: 'k2',
+        title: '信用卡账单分期申请条件及当期利息优惠',
+        category: '分期业务 / 优惠政策',
+        matchScore: '96%',
+        views: 980,
+        speech: '您当前信用卡处于正常还款期，可办理3期、6期分期，目前享有分期手续费5折优惠券，折算后单期费率仅0.32%。'
+      },
+      {
+        id: 'k3',
+        title: '跨行还款扣款成功但未入账处理指引',
+        category: '异常处理 / 资金核对',
+        matchScore: '94%',
+        views: 750,
+        speech: '若您他行卡已扣款但信用卡未显示入账，通常是由于跨行清算在途，银联对账完成后会补入或原路退回，请您保留转账凭证。'
+      },
+      {
+        id: 'k4',
+        title: '手机银行快捷自动还款签约流程',
+        category: '自助渠道 / 签约指南',
+        matchScore: '91%',
+        views: 620,
+        speech: '建议您在手机银行APP签约自动还款服务，可支持绑定本行及主流他行借记卡，在到期还款日自动全额划扣，避免逾期风险。'
+      },
+      {
+        id: 'k5',
+        title: '临时额度到期还款规则及清偿说明',
+        category: '额度管理 / 临时额度',
+        matchScore: '89%',
+        views: 510,
+        speech: '若您本期使用了临时额度，请注意临时额度不享受循环信用，到期后将全额计入当期最低还款额中，需按期全额结清。'
+      }
+    ],
+    // 推荐批次 2 (转账安全与账户分类)
+    [
+      {
+        id: 'k6',
+        title: '手机银行大额转账人脸识别认证指引',
+        category: '安全认证 / 手机银行',
+        matchScore: '98%',
+        views: 1420,
+        speech: '若您在手机银行转账单笔超过5万元，系统会触发人脸识别辅助核验，请保持光线充足正对摄像头，核验通过后即可顺利提交。'
+      },
+      {
+        id: 'k7',
+        title: '借记卡一二类账户限额及升降级办理流程',
+        category: '账户分类 / 限额调整',
+        matchScore: '95%',
+        views: 1110,
+        speech: '二类借记卡日累计出入金限额为1万元、年累计20万元；如需提升额度，可在手机银行或携带身份证至就近网点升级为一类实体卡。'
+      },
+      {
+        id: 'k8',
+        title: '信用卡溢缴款取出免手续费规则与时效',
+        category: '资金划转 / 溢缴款项',
+        matchScore: '93%',
+        views: 890,
+        speech: '您多存入信用卡的资金属于溢缴款，通过我行手机银行APP转出至本人本行借记卡享受免收手续费优惠，系统实时到账。'
+      },
+      {
+        id: 'k9',
+        title: '电话银行密码重置与身份二次核验规范',
+        category: '密码管理 / 安全核身',
+        matchScore: '90%',
+        views: 780,
+        speech: '电话银行密码遗忘时，可通过向您预留手机发送一次性动态校验码并在IVR键盘输入新密码完成重置。'
+      },
+      {
+        id: 'k10',
+        title: '信用卡消费积分兑换年费与礼品操作指引',
+        category: '积分权益 / 年费抵扣',
+        matchScore: '87%',
+        views: 660,
+        speech: '您的信用卡累计消费积分可在手机银行“积分专区”直接抵扣次年年费，或兑换京东E卡、话费充值券等丰富专属礼遇。'
+      }
+    ]
+  ];
+
+  const currentKnowledgeList = knowledgePools[recommendationBatch % knowledgePools.length];
 
   // Selected knowledge for modal preview
   const [activeKnowledgeModal, setActiveKnowledgeModal] = useState<KnowledgeItem | null>(null);
 
-  // Knowledge cards expand/collapse state: 1st card expanded by default, others collapsed
-  const [expandedKnowledgeIds, setExpandedKnowledgeIds] = useState<Record<string, boolean>>({
-    'k1': true
-  });
-
-  const toggleKnowledgeExpand = (id: string) => {
-    setExpandedKnowledgeIds(prev => ({
-      ...prev,
-      [id]: !prev[id]
-    }));
-  };
+  // Single active expanded knowledge id: 1st card expanded by default, clicking another switches it while keeping all 5 titles displayed
+  const [selectedKnowledgeId, setSelectedKnowledgeId] = useState<string>('k1');
 
   // 8. Work Order Summary (工单总结)
   const [workOrderSummary, setWorkOrderSummary] = useState<string>(
@@ -264,12 +317,18 @@ export const SmartVoiceAssistantModal: React.FC = () => {
     window.addEventListener('mouseup', handleMouseUp);
   };
 
-  // Trigger Knowledge Recommendation
+  // Trigger Knowledge Recommendation - 点击按钮直接推荐5条高匹配相关知识
   const handleRefreshKnowledge = () => {
     setIsRefreshingKnowledge(true);
     setTimeout(() => {
+      setRecommendationBatch(prev => {
+        const nextBatch = prev + 1;
+        const nextList = knowledgePools[nextBatch % knowledgePools.length];
+        setSelectedKnowledgeId(nextList[0].id);
+        return nextBatch;
+      });
       setIsRefreshingKnowledge(false);
-    }, 400);
+    }, 300);
   };
 
   // Trigger Work Order Summary Generation
@@ -343,7 +402,7 @@ export const SmartVoiceAssistantModal: React.FC = () => {
             top: modalPos ? `${modalPos.y}px` : undefined,
             right: modalPos ? undefined : '20px'
           }}
-          className="fixed z-50 w-[58vw] min-w-[780px] max-w-[980px] h-[86vh] min-h-[660px] max-h-[880px] bg-white rounded-lg shadow-2xl border border-blue-200/90 flex flex-col overflow-hidden select-none animate-in fade-in zoom-in-95 duration-150"
+          className="fixed z-50 w-[60vw] min-w-[800px] max-w-[1000px] h-[88vh] min-h-[700px] max-h-[890px] bg-white rounded-lg shadow-2xl border border-blue-200/90 flex flex-col overflow-hidden select-none animate-in fade-in zoom-in-95 duration-150"
         >
           {/* ----- 极简淡蓝顶栏 (尽可能小，偏淡蓝色系) ----- */}
           <div
@@ -392,7 +451,7 @@ export const SmartVoiceAssistantModal: React.FC = () => {
                 - 删除模拟进行按钮
                 - 删除下方的输入框区域
                ========================================================================= */}
-            <div className="w-[45%] flex flex-col border-r border-slate-200 bg-white min-h-0">
+            <div className="w-[38%] flex flex-col border-r border-slate-200 bg-white min-h-0">
               
               {/* Sub-header: 语音转写 */}
               <div className="h-7 bg-slate-50 border-b border-slate-200 px-3 flex items-center text-xs flex-shrink-0">
@@ -449,9 +508,9 @@ export const SmartVoiceAssistantModal: React.FC = () => {
               
               {/* ---------------- 模块 1: 前情摘要 (自然内容高度) ---------------- */}
               <div className="bg-white rounded border border-slate-200 p-2 shadow-2xs flex-shrink-0">
-                <div className="flex items-center justify-between pb-1 border-b border-slate-100 mb-1.5">
+                <div className="flex items-center justify-between pb-1 border-b border-slate-100 mb-1">
                   <div className="flex items-center space-x-1.5">
-                    <div className="w-1.5 h-3 bg-blue-600 rounded-full"></div>
+                    <History size={14} className="text-blue-600 stroke-[2.3]" />
                     <span className="font-bold text-slate-800 text-[11.5px]">前情摘要</span>
                   </div>
                   {/* 响应时间 */}
@@ -463,90 +522,104 @@ export const SmartVoiceAssistantModal: React.FC = () => {
                 </div>
               </div>
 
-              {/* ---------------- 模块 2: 知识推荐 (自适应高度 flex-[1.2]) ---------------- */}
-              <div className="bg-white rounded border border-slate-200 p-2 shadow-2xs flex-[1.2] min-h-[145px] flex flex-col overflow-hidden">
-                <div className="flex items-center justify-between pb-1 border-b border-slate-100 mb-1.5 flex-shrink-0">
-                  <div className="flex items-center space-x-1.5">
-                    <div className="w-1.5 h-3 bg-emerald-600 rounded-full"></div>
-                    <span className="font-bold text-slate-800 text-[11.5px]">知识推荐</span>
-                  </div>
+              {/* ---------------- 模块 2: 知识推荐 (直接分为左右两区域: 左侧5条推荐知识+跳转知识库按钮, 右侧展示对应推荐话术) ---------------- */}
+              {(() => {
+                const selectedKnowledge = currentKnowledgeList.find(k => k.id === selectedKnowledgeId) || currentKnowledgeList[0];
+                return (
+                  <div className="bg-white rounded border border-slate-200 p-2 shadow-2xs flex-[1.7] min-h-[220px] flex flex-col">
+                    <div className="flex items-center justify-between pb-1 border-b border-slate-100 mb-1 flex-shrink-0">
+                      <div className="flex items-center space-x-1.5">
+                        <Flame size={14} className="text-amber-500 fill-amber-500 stroke-[1.5]" />
+                        <span className="font-bold text-slate-800 text-[11.5px]">知识推荐</span>
+                      </div>
 
-                  {/* 知识推荐按钮 */}
-                  <button
-                    onClick={handleRefreshKnowledge}
-                    disabled={isRefreshingKnowledge}
-                    className="h-5 px-2 rounded bg-[#1677ff] hover:bg-blue-600 text-white text-[10px] font-medium flex items-center space-x-1 shadow-2xs cursor-pointer transition-colors"
-                  >
-                    <RefreshCw size={10} className={isRefreshingKnowledge ? 'animate-spin' : ''} />
-                    <span>知识推荐</span>
-                  </button>
-                </div>
-
-                {/* 知识卡片列表: 支持收起与展开，第1个默认展开，其余收起 */}
-                <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1 space-y-1.5">
-                  {knowledgeList.map((item, idx) => {
-                    const isExpanded = !!expandedKnowledgeIds[item.id];
-                    return (
-                      <div 
-                        key={item.id}
-                        onClick={() => toggleKnowledgeExpand(item.id)}
-                        className={`
-                          p-2 rounded border transition-all shadow-2xs group cursor-pointer
-                          ${isExpanded 
-                            ? 'border-blue-300 bg-white' 
-                            : 'border-slate-200 hover:border-blue-200 bg-slate-50/70 hover:bg-white'}
-                        `}
-                        title={isExpanded ? '点击收起话术' : '点击展开话术'}
+                      {/* 知识推荐按钮 - 点击后直接推荐五条相关知识 */}
+                      <button
+                        onClick={handleRefreshKnowledge}
+                        disabled={isRefreshingKnowledge}
+                        className="h-5 px-2.5 rounded bg-[#1677ff] hover:bg-blue-600 active:scale-95 text-white text-[10px] font-medium flex items-center space-x-1 shadow-2xs cursor-pointer transition-all"
+                        title="点击直接推荐5条相关知识"
                       >
-                        {/* Title & 跳转知识库入口 */}
-                        <div className={`flex items-center justify-between ${isExpanded ? 'mb-1.5' : ''}`}>
-                          <div className="flex items-center space-x-1.5 min-w-0 flex-1 pr-1">
-                            <span className="w-3.5 h-3.5 rounded-full bg-blue-100 text-blue-700 text-[9.5px] font-bold flex items-center justify-center flex-shrink-0">
-                              {idx + 1}
-                            </span>
-                            <span className="font-semibold text-slate-800 text-[11px] truncate group-hover:text-blue-600">
-                              {item.title}
-                            </span>
-                            <span className="text-slate-400 group-hover:text-blue-500 transition-colors flex-shrink-0">
-                              {isExpanded ? (
-                                <ChevronDown size={12} className="stroke-[2.5]" />
-                              ) : (
-                                <ChevronRight size={12} className="stroke-[2.5]" />
-                              )}
-                            </span>
-                          </div>
+                        <RefreshCw size={10} className={isRefreshingKnowledge ? 'animate-spin' : ''} />
+                        <span>知识推荐</span>
+                      </button>
+                    </div>
 
-                          {/* 入口: 跳转知识库 (stopPropagation 防止触发收起展开) */}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setActiveKnowledgeModal(item);
-                            }}
-                            className="text-[10px] text-[#1677ff] hover:text-blue-800 hover:underline flex items-center space-x-0.5 flex-shrink-0 ml-1 cursor-pointer font-medium"
-                          >
-                            <span>跳转知识库</span>
-                            <ArrowUpRight size={10} />
-                          </button>
+                    {/* 左右分栏主体区域 */}
+                    <div className="flex-1 flex gap-2 min-h-0 pt-0.5">
+                      
+                      {/* 左侧区域: 展示五条推荐知识以及跳转知识库的按钮 */}
+                      <div className="w-[52%] flex flex-col justify-between space-y-1 pr-1 border-r border-slate-100 min-h-0">
+                        {currentKnowledgeList.map((item, idx) => {
+                          const isSelected = selectedKnowledge?.id === item.id;
+                          return (
+                            <div
+                              key={item.id}
+                              onClick={() => setSelectedKnowledgeId(item.id)}
+                              className={`
+                                px-2 py-1.5 rounded border transition-all cursor-pointer flex items-center justify-between group
+                                ${isSelected 
+                                  ? 'border-blue-400 bg-blue-50/70 text-blue-800 shadow-2xs ring-1 ring-blue-300/40' 
+                                  : 'border-slate-200 hover:border-blue-300 bg-white hover:bg-slate-50 text-slate-700'}
+                              `}
+                              title={`点击在右侧查看“${item.title}”推荐话术`}
+                            >
+                              <div className="flex items-center space-x-1.5 min-w-0 flex-1 pr-1">
+                                <span className={`w-3.5 h-3.5 rounded text-[9.5px] font-bold flex items-center justify-center flex-shrink-0 transition-colors ${
+                                  isSelected 
+                                    ? 'bg-blue-600 text-white' 
+                                    : 'bg-slate-100 text-slate-600 border border-slate-200 group-hover:bg-blue-100 group-hover:text-blue-700'
+                                }`}>
+                                  {idx + 1}
+                                </span>
+                                <span className={`font-medium text-[11px] truncate ${
+                                  isSelected ? 'font-bold text-blue-700' : 'text-slate-800 group-hover:text-blue-600'
+                                }`}>
+                                  {item.title}
+                                </span>
+                              </div>
+
+                              {/* 跳转知识库按钮 */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveKnowledgeModal(item);
+                                }}
+                                title="打开知识库详情"
+                                className="text-[10px] text-[#1677ff] hover:text-blue-800 hover:underline flex items-center space-x-0.5 flex-shrink-0 ml-1 cursor-pointer font-medium px-1 py-0.5 rounded hover:bg-blue-100/60 transition-colors"
+                              >
+                                <span>跳转</span>
+                                <ArrowUpRight size={10} />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* 右侧区域: 增加简洁小标题“推荐话术”，话术贴顶展示，上下不居中 */}
+                      <div className="w-[48%] bg-[#f8fafc] border border-slate-200 rounded p-2 flex flex-col min-h-0">
+                        {/* 简洁小标题: 推荐话术 */}
+                        <div className="text-[11px] font-bold text-slate-700 pb-1 mb-1 border-b border-slate-200/70 flex items-center space-x-1 flex-shrink-0">
+                          <span className="w-1 h-2.5 bg-blue-600 rounded-full inline-block"></span>
+                          <span>推荐话术</span>
                         </div>
 
-                        {/* 知识关联的话术 (收起状态不展示，展开状态展示) */}
-                        {isExpanded && (
-                          <div className="text-[10.5px] text-slate-600 bg-slate-50/60 p-1.5 rounded border border-slate-100 leading-normal animate-in fade-in duration-100">
-                            <span className="text-slate-400 font-medium mr-1">话术:</span>
-                            <span>{item.speech}</span>
-                          </div>
-                        )}
+                        {/* 话术内容: 贴着顶部展示 (上下不居中) */}
+                        <div className="flex-1 overflow-y-auto custom-scrollbar p-2 bg-white rounded border border-slate-200/80 text-[11px] leading-relaxed text-slate-700 font-sans shadow-2xs flex flex-col justify-start">
+                          <p className="w-full text-slate-800 leading-normal">{selectedKnowledge ? selectedKnowledge.speech : '暂无对应话术'}</p>
+                        </div>
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
+
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* ---------------- 模块 3: 工单总结 (自适应高度 flex-1) ---------------- */}
-              <div className="bg-white rounded border border-slate-200 p-2 shadow-2xs flex-1 min-h-[125px] flex flex-col overflow-hidden">
+              <div className="bg-white rounded border border-slate-200 p-2 shadow-2xs flex-1 min-h-[120px] flex flex-col overflow-hidden">
                 <div className="flex items-center justify-between pb-1 border-b border-slate-100 mb-1 flex-shrink-0">
                   <div className="flex items-center space-x-1.5">
-                    <div className="w-1.5 h-3 bg-amber-500 rounded-full"></div>
+                    <ClipboardCheck size={14} className="text-emerald-600 stroke-[2.3]" />
                     <span className="font-bold text-slate-800 text-[11.5px]">工单总结</span>
                   </div>
 
@@ -590,11 +663,11 @@ export const SmartVoiceAssistantModal: React.FC = () => {
                 </div>
               </div>
 
-              {/* ---------------- 模块 4: 坐席记录 (自适应高度 flex-[0.9]) ---------------- */}
-              <div className="bg-white rounded border border-slate-200 p-2 shadow-2xs flex-[0.9] min-h-[95px] flex flex-col overflow-hidden">
+              {/* ---------------- 模块 4: 坐席记录 (自适应高度 flex-[0.85]) ---------------- */}
+              <div className="bg-white rounded border border-slate-200 p-2 shadow-2xs flex-[0.85] min-h-[90px] flex flex-col overflow-hidden">
                 <div className="flex items-center justify-between pb-1 border-b border-slate-100 mb-1 flex-shrink-0">
                   <div className="flex items-center space-x-1.5">
-                    <div className="w-1.5 h-3 bg-indigo-500 rounded-full"></div>
+                    <NotebookPen size={14} className="text-indigo-600 stroke-[2.3]" />
                     <span className="font-bold text-slate-800 text-[11.5px]">坐席记录</span>
                   </div>
 
