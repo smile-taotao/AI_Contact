@@ -6,15 +6,21 @@ import OnlineCustomerService from './components/OnlineCustomerService';
 import ClientMobileApp from './components/ClientMobileApp';
 import ProcessManagementWorkbench from './components/process_management/ProcessManagementWorkbench';
 import VoiceWorkbench from './components/VoiceWorkbench';
+import VoiceCustomerServiceWorkbench from './components/VoiceCustomerServiceWorkbench';
 import { ViewState } from './types';
-import { Headphones, Smartphone, PhoneCall, Workflow, Mic } from 'lucide-react';
+import { Headphones, Smartphone, PhoneCall, Workflow, Mic, Phone } from 'lucide-react';
 
 function App() {
-  // Default to the newly implemented 1:1 Voice Customer Service Workbench
-  const [currentView, setCurrentView] = useState<ViewState>('VOICE_WORKBENCH');
+  // Default to the newly implemented 1:1 Voice Customer Service Workbench matching screenshot
+  const [currentView, setCurrentView] = useState<ViewState>('VOICE_CUSTOMER_SERVICE');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   const pageMeta: Record<ViewState, { title: string; category: string; icon: any }> = {
+    VOICE_CUSTOMER_SERVICE: {
+      title: '语音客服工作台',
+      category: '语音客服工作台',
+      icon: Phone,
+    },
     VOICE_WORKBENCH: {
       title: '智能语音工作台',
       category: '智能语音工作台',
@@ -56,11 +62,11 @@ function App() {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
-        {/* Top Call Center Blue Bar */}
-        <TopNav />
+        {/* Top Call Center Blue Bar (Only for non-VOICE_CUSTOMER_SERVICE views, as VOICE_CUSTOMER_SERVICE has its own top bar matching screenshot) */}
+        {currentView !== 'VOICE_CUSTOMER_SERVICE' && <TopNav />}
 
         {/* Breadcrumb / Top Bar Area for other views */}
-        {currentView !== 'VOICE_WORKBENCH' && (
+        {currentView !== 'VOICE_WORKBENCH' && currentView !== 'VOICE_CUSTOMER_SERVICE' && (
           <div className="bg-white border-b border-slate-200 px-4 py-2 text-[12.5px] text-slate-600 flex items-center justify-between flex-shrink-0 select-none">
             <div className="flex items-center space-x-2">
               <span className="text-slate-500">{currentMeta.category}</span>
@@ -73,6 +79,18 @@ function App() {
             {/* Quick Tabs: Core Pages */}
             <div className="flex items-center space-x-1.5 text-[11.5px]">
               <span className="text-slate-400 mr-1 text-[11px]">快捷切换:</span>
+
+              <button
+                onClick={() => setCurrentView('VOICE_CUSTOMER_SERVICE')}
+                className={`flex items-center px-2 py-0.5 rounded transition-colors cursor-pointer border text-xs ${
+                  currentView === 'VOICE_CUSTOMER_SERVICE'
+                    ? 'bg-blue-50 text-blue-600 border-blue-200 font-medium'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                <div className={`w-1.5 h-1.5 rounded-full mr-1.5 ${currentView === 'VOICE_CUSTOMER_SERVICE' ? 'bg-blue-500' : 'bg-slate-300'}`}></div>
+                <span>语音客服工作台</span>
+              </button>
               
               <button
                 onClick={() => setCurrentView('VOICE_WORKBENCH')}
@@ -139,7 +157,12 @@ function App() {
 
         {/* Dynamic Content - Keep alive to preserve all session states */}
         <div className="flex-1 overflow-hidden relative">
-          {/* New 1:1 Voice Customer Service Workbench */}
+          {/* 1:1 Voice Customer Service Workbench matching screenshot */}
+          <div className={`h-full w-full ${currentView === 'VOICE_CUSTOMER_SERVICE' ? 'flex flex-col' : 'hidden'}`}>
+            <VoiceCustomerServiceWorkbench />
+          </div>
+
+          {/* Intelligent Voice Workbench */}
           <div className={`h-full w-full ${currentView === 'VOICE_WORKBENCH' ? 'flex flex-col' : 'hidden'}`}>
             <VoiceWorkbench />
           </div>

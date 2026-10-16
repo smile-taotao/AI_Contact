@@ -5,6 +5,7 @@ import {
   PhoneCall,
   Workflow,
   Mic,
+  Phone,
   ChevronLeft,
   ChevronRight,
   Menu
@@ -45,6 +46,14 @@ const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const menuStructure: MenuItem[] = [
+    { 
+      id: 'voice_customer_service', 
+      label: '语音客服工作台', 
+      icon: Phone, 
+      view: 'VOICE_CUSTOMER_SERVICE',
+      badge: '话务席',
+      description: '全渠道话务与客户画像'
+    },
     { 
       id: 'voice_workbench', 
       label: '智能语音工作台', 
