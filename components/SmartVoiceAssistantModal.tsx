@@ -513,8 +513,6 @@ export const SmartVoiceAssistantModal: React.FC = () => {
                     <History size={14} className="text-blue-600 stroke-[2.3]" />
                     <span className="font-bold text-slate-800 text-[11.5px]">前情摘要</span>
                   </div>
-                  {/* 响应时间 */}
-                  <span className="text-[10px] text-slate-500 font-sans">响应时间: 0.8s</span>
                 </div>
                 
                 <div className="text-[11px] leading-relaxed text-slate-700 bg-blue-50/40 p-2 rounded border border-blue-100/60 font-sans">
