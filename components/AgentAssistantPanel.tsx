@@ -143,30 +143,6 @@ const PRESET_PROCESS_DATABASE = [
     name: '理财产品咨询',
     shortName: '理财产品咨询',
     keywords: ['理财', '投资', '理财产品', '买理财', '理财推荐', '理财收益', '稳健理财', '基金', '资产配置', '存款还是理财', '理财咨询'],
-  },
-  {
-    id: 'proc-feiguimian',
-    name: '个人账户非柜面限制',
-    shortName: '非柜面限制',
-    keywords: ['卡不能用了', '无法转账', '非柜面', '限制非柜面', '限额', '转账不了', '9901', '冻结', '暂停业务'],
-  },
-  {
-    id: 'proc-limit-adjust',
-    name: '大额交易转账限额调整业务',
-    shortName: '转账限额提升',
-    keywords: ['调额', '提升限额', '限额已满', '大额转账'],
-  },
-  {
-    id: 'proc-password-unlock',
-    name: '借记卡密码连续输错锁定解锁业务',
-    shortName: '密码锁定重置',
-    keywords: ['密码错误', '密码锁定', '重置密码', '输错密码'],
-  },
-  {
-    id: 'proc-sleep-card',
-    name: '长期不动户/睡眠卡重新激活业务',
-    shortName: '睡眠户激活',
-    keywords: ['睡眠卡', '不动户', '激活', '长期未用'],
   }
 ];
 
