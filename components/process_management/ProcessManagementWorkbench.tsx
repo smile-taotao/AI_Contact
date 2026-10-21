@@ -4,7 +4,12 @@ import {
   FlowNode, 
   CardComponentType 
 } from './types';
-import { PRESET_PROCESSES } from './defaultProcesses';
+import { 
+  PRESET_PROCESSES, 
+  getSavedProcesses, 
+  saveProcessesToStorage, 
+  PROCESS_STORAGE_KEY 
+} from './defaultProcesses';
 import CardComponentLibrary, { createDefaultComponent } from './CardComponentLibrary';
 import FlowCanvas from './FlowCanvas';
 import NodeConfigDrawer from './NodeConfigDrawer';
@@ -27,15 +32,7 @@ import {
 
 export const ProcessManagementWorkbench: React.FC = () => {
   // Saved processes with localStorage persistence
-  const [processes, setProcesses] = useState<ProcessDefinition[]>(() => {
-    try {
-      const saved = localStorage.getItem('BANK_ASSISTANT_PROCESSES_V1');
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      console.warn('Failed to parse saved processes from localStorage', e);
-    }
-    return PRESET_PROCESSES;
-  });
+  const [processes, setProcesses] = useState<ProcessDefinition[]>(() => getSavedProcesses());
 
   // Current view mode: 'LIST' (Process list view - Requirement 1) | 'CONFIG' (Visual canvas editor)
   const [currentViewMode, setCurrentViewMode] = useState<'LIST' | 'CONFIG'>('LIST');
@@ -65,57 +62,79 @@ export const ProcessManagementWorkbench: React.FC = () => {
   // Save to localStorage
   const handleSaveProcess = () => {
     try {
-      localStorage.setItem('BANK_ASSISTANT_PROCESSES_V1', JSON.stringify(processes));
+      saveProcessesToStorage(processes);
       showToast(`已成功保存流程「${currentProcess.name}」配置！`);
     } catch (e) {
       showToast('保存失败，请检查浏览器存储配额');
     }
   };
 
+  // Toggle process enabled / disabled
+  const handleToggleProcessEnabled = (processId: string) => {
+    const target = processes.find(p => p.id === processId);
+    if (!target) return;
+    const nextEnabled = target.enabled === false;
+    const updated = processes.map(p =>
+      p.id === processId
+        ? {
+            ...p,
+            enabled: nextEnabled,
+            updatedAt: new Date().toLocaleString('zh-CN', { hour12: false })
+          }
+        : p
+    );
+    setProcesses(updated);
+    saveProcessesToStorage(updated);
+    showToast(
+      nextEnabled
+        ? `已启用流程「${target.name}」，聊天命中关键词时将自动触发`
+        : `已停用流程「${target.name}」，停用状态下不会在聊天中触发`
+    );
+  };
+
   // Reset to default presets
   const handleResetToPresets = () => {
     if (window.confirm(`确定要将所有辅助流程重置回系统官方预置配置吗？当前未保存的自定义修改将丢失。`)) {
-      setProcesses(PRESET_PROCESSES);
-      localStorage.removeItem('BANK_ASSISTANT_PROCESSES_V1');
+      const fresh = PRESET_PROCESSES.map(p => ({ ...p }));
+      setProcesses(fresh);
+      localStorage.removeItem(PROCESS_STORAGE_KEY);
+      saveProcessesToStorage(fresh);
       showToast('已重置回系统官方预置流程');
     }
   };
 
   // Publish process
   const handlePublishProcess = () => {
-    setProcesses(prev => prev.map(p => {
-      if (p.id === activeProcessId) {
-        return {
-          ...p,
-          status: 'PUBLISHED',
-          updatedAt: new Date().toLocaleString('zh-CN', { hour12: false })
-        };
-      }
-      return p;
-    }));
-    try {
-      const updated = processes.map(p => p.id === activeProcessId ? {
-        ...p,
-        status: 'PUBLISHED' as const,
-        updatedAt: new Date().toLocaleString('zh-CN', { hour12: false })
-      } : p);
-      localStorage.setItem('BANK_ASSISTANT_PROCESSES_V1', JSON.stringify(updated));
-    } catch (e) {}
+    const updated = processes.map(p =>
+      p.id === activeProcessId
+        ? {
+            ...p,
+            status: 'PUBLISHED' as const,
+            updatedAt: new Date().toLocaleString('zh-CN', { hour12: false })
+          }
+        : p
+    );
+    setProcesses(updated);
+    saveProcessesToStorage(updated);
     showToast(`流程「${currentProcess.name}」已成功发布至坐席在线辅助系统！`);
   };
 
   // Update nodes of current process
   const handleUpdateNodes = (newNodes: FlowNode[]) => {
-    setProcesses(prev => prev.map(p => {
-      if (p.id === activeProcessId) {
-        return {
-          ...p,
-          nodes: newNodes,
-          updatedAt: new Date().toLocaleTimeString('zh-CN')
-        };
-      }
-      return p;
-    }));
+    setProcesses(prev => {
+      const next = prev.map(p => {
+        if (p.id === activeProcessId) {
+          return {
+            ...p,
+            nodes: newNodes,
+            updatedAt: new Date().toLocaleTimeString('zh-CN')
+          };
+        }
+        return p;
+      });
+      saveProcessesToStorage(next);
+      return next;
+    });
   };
 
   // Update a single node
@@ -241,6 +260,7 @@ export const ProcessManagementWorkbench: React.FC = () => {
       description: '自定义新建的坐席智能引导辅助流程',
       version: 'v1.0',
       status: 'DRAFT',
+      enabled: true,
       updatedAt: '刚刚',
       startNodeId: firstNodeId,
       nodes: [
@@ -265,9 +285,7 @@ export const ProcessManagementWorkbench: React.FC = () => {
 
     const updated = [newProcess, ...processes];
     setProcesses(updated);
-    try {
-      localStorage.setItem('BANK_ASSISTANT_PROCESSES_V1', JSON.stringify(updated));
-    } catch (e) {}
+    saveProcessesToStorage(updated);
 
     setActiveProcessId(newId);
     setSelectedNodeId(firstNodeId);
@@ -300,9 +318,7 @@ export const ProcessManagementWorkbench: React.FC = () => {
 
     const updated = [duplicatedProc, ...processes];
     setProcesses(updated);
-    try {
-      localStorage.setItem('BANK_ASSISTANT_PROCESSES_V1', JSON.stringify(updated));
-    } catch (e) {}
+    saveProcessesToStorage(updated);
     showToast(`已成功复制流程「${srcProc.name}」`);
   };
 
@@ -316,9 +332,7 @@ export const ProcessManagementWorkbench: React.FC = () => {
     if (window.confirm(`确定要彻底删除流程「${target?.name || processId}」吗？删除后将不可恢复。`)) {
       const filtered = processes.filter(p => p.id !== processId);
       setProcesses(filtered);
-      try {
-        localStorage.setItem('BANK_ASSISTANT_PROCESSES_V1', JSON.stringify(filtered));
-      } catch (e) {}
+      saveProcessesToStorage(filtered);
       if (activeProcessId === processId) {
         setActiveProcessId(filtered[0]?.id || '');
       }
@@ -356,6 +370,7 @@ export const ProcessManagementWorkbench: React.FC = () => {
         <ProcessListView
           processes={processes}
           onSelectProcess={handleSelectProcessToConfig}
+          onToggleProcessEnabled={handleToggleProcessEnabled}
           onCreateNewProcess={handleCreateNewProcess}
           onDuplicateProcess={handleDuplicateProcess}
           onDeleteProcess={handleDeleteProcess}
@@ -492,15 +507,22 @@ export const ProcessManagementWorkbench: React.FC = () => {
               </div>
 
               <div className="flex items-center space-x-1.5">
-                <span className="text-slate-400">发布状态:</span>
-                <span className={`px-2 py-0.2 rounded-full text-[10px] font-semibold flex items-center space-x-1 ${
-                  currentProcess.status === 'PUBLISHED'
-                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                    : 'bg-amber-50 text-amber-700 border border-amber-200'
-                }`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${currentProcess.status === 'PUBLISHED' ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
-                  <span>{currentProcess.status === 'PUBLISHED' ? '已发布生效' : '草稿编辑中'}</span>
-                </span>
+                <span className="text-slate-400">启用状态:</span>
+                <button
+                  type="button"
+                  onClick={() => handleToggleProcessEnabled(currentProcess.id)}
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-semibold flex items-center space-x-1.5 cursor-pointer transition-colors border ${
+                    currentProcess.enabled !== false
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                      : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                  }`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${currentProcess.enabled !== false ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></span>
+                  <span>{currentProcess.enabled !== false ? '已启用（聊天可触发）' : '已停用（聊天不触发）'}</span>
+                  <span className="underline ml-0.5 text-[9.5px] opacity-80">
+                    {currentProcess.enabled !== false ? '点击停用' : '点击启用'}
+                  </span>
+                </button>
               </div>
             </div>
 

@@ -28,7 +28,9 @@ export interface CustomerProfile {
   unreadCount: number;
 }
 
-const DEFAULT_MESSAGES: ChatMessage[] = [
+export const DEFAULT_MESSAGES: ChatMessage[] = [];
+
+export const SAMPLE_MESSAGES: ChatMessage[] = [
   {
     id: 'msg-1',
     sender: 'customer',
@@ -65,7 +67,7 @@ const DEFAULT_MESSAGES: ChatMessage[] = [
 ];
 
 class ChatStore {
-  private messages: ChatMessage[] = [...DEFAULT_MESSAGES];
+  private messages: ChatMessage[] = [];
   private listeners: Set<() => void> = new Set();
   private isSoundEnabled: boolean = true;
   private agentStatus: string = '在线';
@@ -73,14 +75,24 @@ class ChatStore {
   private unreadForClient: number = 0;
 
   constructor() {
-    // Load from session storage if exists
+    // Ensure fresh session starts empty
     try {
-      const saved = sessionStorage.getItem('online_chat_messages');
-      if (saved) {
-        this.messages = JSON.parse(saved);
+      const hasInit = sessionStorage.getItem('online_chat_session_init_v2');
+      if (!hasInit) {
+        sessionStorage.removeItem('online_chat_messages');
+        sessionStorage.setItem('online_chat_session_init_v2', 'true');
+        this.messages = [];
+      } else {
+        const saved = sessionStorage.getItem('online_chat_messages');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            this.messages = parsed;
+          }
+        }
       }
     } catch (e) {
-      // ignore
+      this.messages = [];
     }
   }
 
@@ -127,9 +139,9 @@ class ChatStore {
   }
 
   public sendMessage(
-    sender: 'customer' | 'agent', 
+    sender: 'customer' | 'agent' | 'system', 
     content: string, 
-    type: 'text' | 'image' | 'card' = 'text',
+    type: 'text' | 'image' | 'card' | 'system' = 'text',
     metadata?: Record<string, any>
   ): ChatMessage {
     const now = new Date();
@@ -140,8 +152,8 @@ class ChatStore {
     const newMsg: ChatMessage = {
       id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       sender,
-      senderName: sender === 'agent' ? '6028' : '游客707847',
-      senderRole: sender === 'agent' ? '在线坐席' : '手机银行客户',
+      senderName: sender === 'agent' ? '6028' : sender === 'system' ? '系统' : '游客707847',
+      senderRole: sender === 'agent' ? '在线坐席' : sender === 'system' ? '系统通知' : '手机银行客户',
       content,
       timestamp,
       timeOnly,
@@ -190,7 +202,12 @@ class ChatStore {
   }
 
   public resetToDefault() {
-    this.messages = [...DEFAULT_MESSAGES];
+    this.messages = [];
+    this.notify();
+  }
+
+  public loadSampleMessages() {
+    this.messages = [...SAMPLE_MESSAGES];
     this.notify();
   }
 

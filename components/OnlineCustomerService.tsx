@@ -33,9 +33,10 @@ import {
   ArrowRight,
   Edit3
 } from 'lucide-react';
-import { chatStore, ChatMessage } from '../services/chatStore';
+import { chatStore, ChatMessage, SAMPLE_MESSAGES } from '../services/chatStore';
 import AgentAssistantPanel from './AgentAssistantPanel';
 import { InteractiveCardBubble } from './InteractiveCardBubble';
+import ClientMobileFloatingSimulator from './ClientMobileFloatingSimulator';
 
 export interface FAQDocCardItem {
   id: string;
@@ -176,6 +177,38 @@ export function generateRecommendationForCustomerQuery(
           question: '如何自助提升单日转账限额？',
           answer: '进入手机银行【转账】-【转账设置】-【限额管理】，选择上调额度并通过人脸活体认证，即可实时提升。',
           scope: '个人借记卡客户'
+        }
+      ]
+    };
+  }
+
+  // 3.5 理财 / 投资 / 资产配置 / 稳健理财
+  if (/理财|投资|理财产品|买理财|理财推荐|稳健理财|资产配置|财富管理|想买理财/i.test(query)) {
+    return {
+      id: `rec-wealth-${uid}`,
+      topicTitle: '理财产品咨询',
+      customerQuery: query,
+      timestamp: time,
+      tag: '最新',
+      content: `您好，非常高兴为您提供理财咨询服务！依据投资者适当性管理要求，为您提供以下业务解答与合规指引：
+1、法定测评先行：理财非存款、投资须谨慎。根据《商业银行理财业务监督管理办法》，向您推荐理财前需先进行风险承受能力测评，确保产品风险等级与您的承受能力相匹配；
+2、明确投资目标与期限：结合您的资金闲置周期（如短期灵活、中短期稳健、中长期增值）与流动性要求，为您量身定制固收类或多资产配置方案；
+3、合规风险揭示：为您通俗解释产品底层资产投向、收益结构及最坏情形（非保本浮动收益，极端情况存在本金浮亏风险），坚决禁止承诺保本保收益；
+4、持牌服务支持：您可通过手机银行官方APP安全认购（支持24小时投资冷静期），或由持牌资深理财顾问为您提供一对一专业咨询。
+
+适用范围：个人财富管理与理财业务客户`,
+      relatedDocs: [
+        {
+          id: `faq-wealth-1-${uid}`,
+          question: '为什么买银行理财产品必须先做风险测评？',
+          answer: '根据监管投资者适当性管理规定，风险测评是保障投资者合法权益的法定程序，通过测评匹配适合您风险承受能力的产品，防范投资风险。',
+          scope: '投资者适当性管理规范'
+        },
+        {
+          id: `faq-wealth-2-${uid}`,
+          question: '理财产品说明书中的“业绩比较基准”是保底收益吗？',
+          answer: '不是。业绩比较基准仅供投资参考，不构成任何收益承诺。银行理财全面打破刚性兑付，产品过往业绩不代表未来表现。',
+          scope: '资管新规与合规销售'
         }
       ]
     };
@@ -336,21 +369,19 @@ export default function OnlineCustomerService({ onNavigateToMobile }: OnlineCust
   // Tabs & selections
   const [leftTab, setLeftTab] = useState<'session' | 'agent' | 'meeting' | 'queue'>('session');
   const [rightTab, setRightTab] = useState<'assistant' | 'recommended' | 'faq' | 'history' | 'summary'>('assistant');
-  const [faqSearch, setFaqSearch] = useState('卡不能用了，无法转账');
+  const [faqSearch, setFaqSearch] = useState('');
 
-  // Recommended Scripts State - 推荐记录管理
-  const [recommendations, setRecommendations] = useState<RecommendedScriptItem[]>(INITIAL_RECOMMENDATIONS);
-  const [selectedRecId, setSelectedRecId] = useState<string>(INITIAL_RECOMMENDATIONS[0].id);
+  // Recommended Scripts State - 推荐记录管理 (初次打开默认为空)
+  const [recommendations, setRecommendations] = useState<RecommendedScriptItem[]>([]);
+  const [selectedRecId, setSelectedRecId] = useState<string>('');
   const [sessionResetKey, setSessionResetKey] = useState(0);
   const [showHistoryDropdown, setShowHistoryDropdown] = useState(false);
   const [showRelatedDocs, setShowRelatedDocs] = useState(false);
-  const [expandedDocIds, setExpandedDocIds] = useState<Record<string, boolean>>({
-    'faq-card-1': true,
-  });
+  const [expandedDocIds, setExpandedDocIds] = useState<Record<string, boolean>>({});
   const [copiedDocId, setCopiedDocId] = useState<string | null>(null);
 
-  // 跟踪已处理过的客户咨询消息ID（初始包含默认四条记录中的客户消息）
-  const processedCustomerMsgIdsRef = useRef<Set<string>>(new Set(['msg-1', 'msg-2', 'msg-4']));
+  // 跟踪已处理过的客户咨询消息ID (初次打开默认为空)
+  const processedCustomerMsgIdsRef = useRef<Set<string>>(new Set());
   
   // Features & dialogs
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -359,10 +390,10 @@ export default function OnlineCustomerService({ onNavigateToMobile }: OnlineCust
   const [isSilentAgent, setIsSilentAgent] = useState(false);
   const [isManaged, setIsManaged] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
-  const [showSplitMobile, setShowSplitMobile] = useState(false);
+  const [showMobileSimulator, setShowMobileSimulator] = useState(false);
 
-  // Call timer running
-  const [secondsElapsed, setSecondsElapsed] = useState(204); // 00:03:24
+  // Call timer running (从0秒开始计时)
+  const [secondsElapsed, setSecondsElapsed] = useState(0);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -708,10 +739,12 @@ export default function OnlineCustomerService({ onNavigateToMobile }: OnlineCust
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-xs text-slate-800 truncate">游客707847</span>
-                    <span className="text-[11px] text-slate-400 font-mono">10:09</span>
+                    <span className="text-[11px] text-slate-400 font-mono">
+                      {messages.length > 0 ? (messages[messages.length - 1].timeOnly || '10:09') : '10:09'}
+                    </span>
                   </div>
                   <p className="text-[11px] text-slate-500 truncate mt-1">
-                    {messages.length > 0 ? messages[messages.length - 1].content : '卡不能用了，无法转账'}
+                    {messages.length > 0 ? messages[messages.length - 1].content : '等待客户发送消息...'}
                   </p>
                 </div>
               </div>
@@ -723,20 +756,23 @@ export default function OnlineCustomerService({ onNavigateToMobile }: OnlineCust
           )}
         </div>
 
-        {/* Quick simulator shortcut link to mobile app */}
+        {/* Quick simulator shortcut: 客户端手机app (点击悬浮展示/隐藏) */}
         <div className="p-2 border-t border-slate-200 bg-slate-50/70">
           <button
-            onClick={() => {
-              if (onNavigateToMobile) {
-                onNavigateToMobile();
-              } else {
-                setShowSplitMobile(prev => !prev);
-              }
-            }}
-            className="w-full flex items-center justify-center space-x-1.5 py-1.5 px-2 bg-white border border-blue-200 text-blue-600 rounded text-xs hover:bg-blue-50 transition-colors shadow-sm"
+            type="button"
+            onClick={() => setShowMobileSimulator(prev => !prev)}
+            className={`w-full flex items-center justify-center space-x-1.5 py-1.5 px-2 rounded text-xs transition-colors shadow-sm cursor-pointer border ${
+              showMobileSimulator
+                ? 'bg-blue-600 text-white border-blue-600 font-medium'
+                : 'bg-white border-blue-200 text-blue-600 hover:bg-blue-50'
+            }`}
+            title="点击在左侧显示或隐藏客户端手机APP模拟器"
           >
             <Smartphone size={13} />
-            <span>切换至【客户端手机app】</span>
+            <span>客户端手机app</span>
+            {showMobileSimulator && (
+              <span className="w-1.5 h-1.5 rounded-full bg-white ml-0.5"></span>
+            )}
           </button>
         </div>
       </div>
@@ -807,28 +843,10 @@ export default function OnlineCustomerService({ onNavigateToMobile }: OnlineCust
           {/* Empty state when messages are cleared */}
           {messages.length === 0 ? (
             <div className="h-full min-h-[340px] flex flex-col items-center justify-center text-slate-400 p-8 text-center select-none">
-              <div className="w-14 h-14 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-400 mb-3 shadow-inner">
-                <MessageSquare size={24} className="text-slate-400" />
+              <div className="w-14 h-14 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-500 mb-3 shadow-inner">
+                <MessageSquare size={24} className="text-blue-500" />
               </div>
-              <div className="text-sm font-semibold text-slate-700 mb-1">会话已结束</div>
-              <div className="text-xs text-slate-400 max-w-sm mb-4 leading-relaxed">
-                当前所有聊天内容已清空。您可以直接在下方输入框发送新消息开启对话，或点击下方按钮恢复初始示例数据。
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  chatStore.resetToDefault();
-                  setSecondsElapsed(204);
-                  setRecommendations(INITIAL_RECOMMENDATIONS);
-                  setSelectedRecId(INITIAL_RECOMMENDATIONS[0].id);
-                  setToastMessage('已恢复示例会话数据');
-                  setTimeout(() => setToastMessage(null), 2500);
-                }}
-                className="px-3.5 py-1.5 text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 rounded-md transition-colors flex items-center space-x-1.5 font-medium shadow-xs cursor-pointer"
-              >
-                <RotateCcw size={13} />
-                <span>恢复示例会话数据</span>
-              </button>
+              <div className="text-sm font-semibold text-slate-700">当前会话已接通，等待沟通</div>
             </div>
           ) : (
             messages.map((msg) => {
@@ -1140,7 +1158,7 @@ export default function OnlineCustomerService({ onNavigateToMobile }: OnlineCust
           <div className="flex-1 overflow-hidden flex flex-col">
             <AgentAssistantPanel 
               resetSignal={sessionResetKey}
-              onNavigateToMobile={onNavigateToMobile}
+              onNavigateToMobile={() => setShowMobileSimulator(true)}
               onToast={(msg) => {
                 setToastMessage(msg);
                 setTimeout(() => setToastMessage(null), 2500);
@@ -1261,7 +1279,7 @@ export default function OnlineCustomerService({ onNavigateToMobile }: OnlineCust
             <div className="mt-2.5">
               <div className="text-[11px] text-slate-400 mb-1.5">常用搜索</div>
               <div className="flex flex-wrap gap-1.5">
-                {['用户挂失', '开户', '卡片受限', '转账限额', '翻译机联网'].map((tag) => (
+                {['理财咨询', '用户挂失', '开户', '卡片受限', '转账限额', '翻译机联网'].map((tag) => (
                   <button
                     key={tag}
                     onClick={() => setFaqSearch(tag)}
@@ -1690,6 +1708,17 @@ export default function OnlineCustomerService({ onNavigateToMobile }: OnlineCust
             </div>
           </div>
         </div>
+      )}
+
+      {/* 客户端手机APP 客户手机模拟发送消息悬浮展示面板 */}
+      {showMobileSimulator && (
+        <ClientMobileFloatingSimulator
+          onClose={() => setShowMobileSimulator(false)}
+          onToast={(msg) => {
+            setToastMessage(msg);
+            setTimeout(() => setToastMessage(null), 2500);
+          }}
+        />
       )}
 
     </div>

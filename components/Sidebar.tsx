@@ -47,22 +47,6 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const menuStructure: MenuItem[] = [
     { 
-      id: 'voice_customer_service', 
-      label: '语音客服工作台', 
-      icon: Phone, 
-      view: 'VOICE_CUSTOMER_SERVICE',
-      badge: '话务席',
-      description: '全渠道话务与客户画像'
-    },
-    { 
-      id: 'voice_workbench', 
-      label: '智能语音工作台', 
-      icon: Mic, 
-      view: 'VOICE_WORKBENCH',
-      badge: '呼入席',
-      description: '全流程呼叫与智能辅助'
-    },
-    { 
       id: 'online_service', 
       label: '智能在线客服', 
       icon: Headphones, 
@@ -79,20 +63,36 @@ const Sidebar: React.FC<SidebarProps> = ({
       description: '手机银行APP实时联动'
     },
     { 
-      id: 'workbench', 
-      label: '智能呼入工作台', 
-      icon: PhoneCall, 
-      view: 'SIMULATOR',
-      badge: '语音席',
-      description: '流程仿真与话术演练'
-    },
-    { 
       id: 'process_management', 
       label: '辅助流程管理', 
       icon: Workflow, 
       view: 'PROCESS_MANAGEMENT',
       badge: '配置',
       description: '可视化流转与卡片编排'
+    },
+    { 
+      id: 'voice_customer_service', 
+      label: '语音客服工作台', 
+      icon: Phone, 
+      view: 'VOICE_CUSTOMER_SERVICE',
+      badge: '话务席',
+      description: '全渠道话务与客户画像'
+    },
+    { 
+      id: 'voice_workbench', 
+      label: '智能语音工作台', 
+      icon: Mic, 
+      view: 'VOICE_WORKBENCH',
+      badge: '呼入席',
+      description: '全流程呼叫与智能辅助'
+    },
+    { 
+      id: 'workbench', 
+      label: '智能呼入工作台', 
+      icon: PhoneCall, 
+      view: 'SIMULATOR',
+      badge: '语音席',
+      description: '流程仿真与话术演练'
     },
   ];
 

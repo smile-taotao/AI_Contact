@@ -189,6 +189,7 @@ export const createDefaultComponent = (type: CardComponentType): FlowCardCompone
         title: '操作确认按钮',
         buttonText: '确认并进入下一步',
         actionType: 'SUBMIT_CONFIRM',
+        showOnLastQuestion: true,
         hintText: '点击后自动流转至下一关联节点'
       };
   }

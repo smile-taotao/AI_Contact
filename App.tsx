@@ -11,8 +11,8 @@ import { ViewState } from './types';
 import { Headphones, Smartphone, PhoneCall, Workflow, Mic, Phone } from 'lucide-react';
 
 function App() {
-  // Default to the newly implemented 1:1 Voice Customer Service Workbench matching screenshot
-  const [currentView, setCurrentView] = useState<ViewState>('VOICE_CUSTOMER_SERVICE');
+  // Default to the first menu item: Online Customer Service
+  const [currentView, setCurrentView] = useState<ViewState>('ONLINE_SERVICE');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   const pageMeta: Record<ViewState, { title: string; category: string; icon: any }> = {
@@ -81,30 +81,6 @@ function App() {
               <span className="text-slate-400 mr-1 text-[11px]">快捷切换:</span>
 
               <button
-                onClick={() => setCurrentView('VOICE_CUSTOMER_SERVICE')}
-                className={`flex items-center px-2 py-0.5 rounded transition-colors cursor-pointer border text-xs ${
-                  currentView === 'VOICE_CUSTOMER_SERVICE'
-                    ? 'bg-blue-50 text-blue-600 border-blue-200 font-medium'
-                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                <div className={`w-1.5 h-1.5 rounded-full mr-1.5 ${currentView === 'VOICE_CUSTOMER_SERVICE' ? 'bg-blue-500' : 'bg-slate-300'}`}></div>
-                <span>语音客服工作台</span>
-              </button>
-              
-              <button
-                onClick={() => setCurrentView('VOICE_WORKBENCH')}
-                className={`flex items-center px-2 py-0.5 rounded transition-colors cursor-pointer border text-xs ${
-                  currentView === 'VOICE_WORKBENCH'
-                    ? 'bg-blue-50 text-blue-600 border-blue-200 font-medium'
-                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                <div className={`w-1.5 h-1.5 rounded-full mr-1.5 ${currentView === 'VOICE_WORKBENCH' ? 'bg-blue-500' : 'bg-slate-300'}`}></div>
-                <span>智能语音工作台</span>
-              </button>
-
-              <button
                 onClick={() => setCurrentView('ONLINE_SERVICE')}
                 className={`flex items-center px-2 py-0.5 rounded transition-colors cursor-pointer border text-xs ${
                   currentView === 'ONLINE_SERVICE'
@@ -129,18 +105,6 @@ function App() {
               </button>
 
               <button
-                onClick={() => setCurrentView('SIMULATOR')}
-                className={`flex items-center px-2 py-0.5 rounded transition-colors cursor-pointer border text-xs ${
-                  currentView === 'SIMULATOR'
-                    ? 'bg-blue-50 text-blue-600 border-blue-200 font-medium'
-                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                <div className={`w-1.5 h-1.5 rounded-full mr-1.5 ${currentView === 'SIMULATOR' ? 'bg-blue-500' : 'bg-slate-300'}`}></div>
-                <span>智能呼入工作台</span>
-              </button>
-
-              <button
                 onClick={() => setCurrentView('PROCESS_MANAGEMENT')}
                 className={`flex items-center px-2 py-0.5 rounded transition-colors cursor-pointer border text-xs ${
                   currentView === 'PROCESS_MANAGEMENT'
@@ -150,6 +114,42 @@ function App() {
               >
                 <div className={`w-1.5 h-1.5 rounded-full mr-1.5 ${currentView === 'PROCESS_MANAGEMENT' ? 'bg-blue-500' : 'bg-slate-300'}`}></div>
                 <span>辅助流程管理</span>
+              </button>
+
+              <button
+                onClick={() => setCurrentView('VOICE_CUSTOMER_SERVICE')}
+                className={`flex items-center px-2 py-0.5 rounded transition-colors cursor-pointer border text-xs ${
+                  currentView === 'VOICE_CUSTOMER_SERVICE'
+                    ? 'bg-blue-50 text-blue-600 border-blue-200 font-medium'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                <div className={`w-1.5 h-1.5 rounded-full mr-1.5 ${currentView === 'VOICE_CUSTOMER_SERVICE' ? 'bg-blue-500' : 'bg-slate-300'}`}></div>
+                <span>语音客服工作台</span>
+              </button>
+              
+              <button
+                onClick={() => setCurrentView('VOICE_WORKBENCH')}
+                className={`flex items-center px-2 py-0.5 rounded transition-colors cursor-pointer border text-xs ${
+                  currentView === 'VOICE_WORKBENCH'
+                    ? 'bg-blue-50 text-blue-600 border-blue-200 font-medium'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                <div className={`w-1.5 h-1.5 rounded-full mr-1.5 ${currentView === 'VOICE_WORKBENCH' ? 'bg-blue-500' : 'bg-slate-300'}`}></div>
+                <span>智能语音工作台</span>
+              </button>
+
+              <button
+                onClick={() => setCurrentView('SIMULATOR')}
+                className={`flex items-center px-2 py-0.5 rounded transition-colors cursor-pointer border text-xs ${
+                  currentView === 'SIMULATOR'
+                    ? 'bg-blue-50 text-blue-600 border-blue-200 font-medium'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                <div className={`w-1.5 h-1.5 rounded-full mr-1.5 ${currentView === 'SIMULATOR' ? 'bg-blue-500' : 'bg-slate-300'}`}></div>
+                <span>智能呼入工作台</span>
               </button>
             </div>
           </div>

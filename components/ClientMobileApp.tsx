@@ -121,7 +121,7 @@ export default function ClientMobileApp({ onNavigateToAgent }: ClientMobileAppPr
 
         <div className="flex items-center space-x-3">
           <button
-            onClick={() => chatStore.resetToDefault()}
+            onClick={() => chatStore.loadSampleMessages()}
             className="flex items-center space-x-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium transition-colors border border-slate-200 cursor-pointer"
             title="恢复初始示例聊天记录"
           >
@@ -449,6 +449,13 @@ export default function ClientMobileApp({ onNavigateToAgent }: ClientMobileAppPr
               >
                 5. 询问银行卡紧急挂失与补办
               </button>
+
+              <button
+                onClick={() => handleSendMessage('我想咨询一下银行理财产品，有什么稳健推荐？')}
+                className="w-full text-left p-2.5 text-xs bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 rounded-lg text-slate-700 hover:text-blue-700 transition-all"
+              >
+                6. 客户咨询理财产品与合规推荐
+              </button>
             </div>
 
             <div className="mt-6 pt-4 border-t border-slate-100">
@@ -464,14 +471,14 @@ export default function ClientMobileApp({ onNavigateToAgent }: ClientMobileAppPr
 
           <button
             onClick={() => {
-              if (confirm('确定重置所有聊天记录至图片初始状态吗？')) {
-                chatStore.resetToDefault();
+              if (confirm('确定加载示例会话数据吗？')) {
+                chatStore.loadSampleMessages();
               }
             }}
-            className="w-full py-2 border border-slate-200 hover:border-slate-300 text-slate-600 rounded-lg text-xs hover:bg-slate-50 transition-colors flex items-center justify-center space-x-1.5 mt-4"
+            className="w-full py-2 border border-slate-200 hover:border-slate-300 text-slate-600 rounded-lg text-xs hover:bg-slate-50 transition-colors flex items-center justify-center space-x-1.5 mt-4 cursor-pointer"
           >
             <RefreshCw size={13} />
-            <span>重置聊天为初始四条记录</span>
+            <span>载入示例四条聊天记录</span>
           </button>
         </div>
 

@@ -20,12 +20,14 @@ import {
   ShieldCheck,
   FolderOpen,
   Eye,
-  RefreshCw
+  RefreshCw,
+  Power
 } from 'lucide-react';
 
 interface ProcessListViewProps {
   processes: ProcessDefinition[];
   onSelectProcess: (processId: string) => void;
+  onToggleProcessEnabled: (processId: string) => void;
   onCreateNewProcess: () => void;
   onDuplicateProcess: (processId: string) => void;
   onDeleteProcess: (processId: string) => void;
@@ -35,6 +37,7 @@ interface ProcessListViewProps {
 export const ProcessListView: React.FC<ProcessListViewProps> = ({
   processes,
   onSelectProcess,
+  onToggleProcessEnabled,
   onCreateNewProcess,
   onDuplicateProcess,
   onDeleteProcess,
@@ -68,8 +71,13 @@ export const ProcessListView: React.FC<ProcessListViewProps> = ({
         p.description?.toLowerCase().includes(searchTerm.toLowerCase().trim()) ||
         p.keywords?.some(k => k.toLowerCase().includes(searchTerm.toLowerCase().trim()));
 
+      const isEnabled = p.enabled !== false;
       const matchCategory = selectedCategory === 'ALL' || p.category === selectedCategory;
-      const matchStatus = selectedStatus === 'ALL' || p.status === selectedStatus;
+      const matchStatus =
+        selectedStatus === 'ALL' ||
+        (selectedStatus === 'ENABLED' && isEnabled) ||
+        (selectedStatus === 'DISABLED' && !isEnabled) ||
+        p.status === selectedStatus;
 
       return matchSearch && matchCategory && matchStatus;
     });
@@ -110,14 +118,20 @@ export const ProcessListView: React.FC<ProcessListViewProps> = ({
               <span className="flex h-2 w-2 rounded-full bg-blue-600 animate-pulse"></span>
               <span>智能辅助工作台 / 流程配置引擎</span>
             </div>
-            <h1 className="text-xl font-bold text-slate-900 mt-1 flex items-center space-x-2.5">
+            <h1 className="text-xl font-bold text-slate-900 mt-1 flex items-center flex-wrap gap-2">
               <span>辅助流程管理</span>
               <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-medium">
                 共 {processes.length} 个业务流程
               </span>
+              <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
+                已启用 {processes.filter(p => p.enabled !== false).length} 个
+              </span>
+              <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200 font-medium">
+                已停用 {processes.filter(p => p.enabled === false).length} 个
+              </span>
             </h1>
             <p className="text-xs text-slate-500 mt-1 max-w-3xl leading-relaxed">
-              统一维护坐席辅助的所有业务引导流程（如银行卡挂失、非柜面限制等）。点击具体流程卡片即可进入可视化拖拉拽画布，对步骤节点、卡片多要素组件及分支流转规则进行自由编排。
+              统一维护坐席辅助的所有业务引导流程（如银行卡挂失、理财产品咨询、非柜面限制等）。支持开启或停用任意流程（停用状态的流程不会在聊天中触发），点击流程卡片可进入可视化画布对步骤节点、卡片组件及分支规则进行编排。
             </p>
           </div>
 
@@ -194,8 +208,10 @@ export const ProcessListView: React.FC<ProcessListViewProps> = ({
               className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 focus:bg-white focus:border-blue-500 outline-none cursor-pointer"
             >
               <option value="ALL">全部状态</option>
-              <option value="PUBLISHED">已发布 / 生效中</option>
-              <option value="DRAFT">草稿 / 编辑中</option>
+              <option value="ENABLED">已启用（聊天可触发）</option>
+              <option value="DISABLED">已停用（聊天不触发）</option>
+              <option value="PUBLISHED">已发布</option>
+              <option value="DRAFT">草稿</option>
             </select>
           </div>
         </div>
@@ -209,38 +225,72 @@ export const ProcessListView: React.FC<ProcessListViewProps> = ({
               const branchCount = proc.nodes?.reduce((acc, n) => acc + (n.branches?.length || 0), 0) || 0;
               // calculate interactive components count
               const interactiveCount = proc.nodes?.filter(n => n.requiresClientConfirm).length || 0;
+              const isEnabled = proc.enabled !== false;
 
               return (
                 <div
                   key={proc.id}
                   onClick={() => onSelectProcess(proc.id)}
-                  className="group bg-white rounded-2xl border border-slate-200/90 hover:border-blue-400 hover:shadow-lg hover:shadow-blue-500/8 transition-all duration-200 flex flex-col overflow-hidden cursor-pointer relative"
+                  className={`group bg-white rounded-2xl border transition-all duration-200 flex flex-col overflow-hidden cursor-pointer relative ${
+                    isEnabled
+                      ? 'border-slate-200/90 hover:border-blue-400 hover:shadow-lg hover:shadow-blue-500/8'
+                      : 'border-slate-200/80 bg-slate-50/40 hover:border-slate-300 opacity-90'
+                  }`}
                 >
                   {/* Card Top Header */}
                   <div className="p-5 pb-3 flex-1 flex flex-col">
-                    <div className="flex items-start justify-between gap-3 mb-2.5">
+                    <div className="flex items-start justify-between gap-2 mb-2.5">
                       <div className="flex items-center space-x-2 min-w-0">
-                        <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-200/60 text-blue-600 flex items-center justify-center flex-shrink-0 group-hover:scale-105 group-hover:bg-blue-600 group-hover:text-white transition-all shadow-2xs">
+                        <div className={`w-9 h-9 rounded-xl border flex items-center justify-center flex-shrink-0 transition-all shadow-2xs ${
+                          isEnabled
+                            ? 'bg-blue-50 border-blue-200/60 text-blue-600 group-hover:scale-105 group-hover:bg-blue-600 group-hover:text-white'
+                            : 'bg-slate-100 border-slate-200 text-slate-400'
+                        }`}>
                           <GitBranch size={18} />
                         </div>
                         <div className="min-w-0">
-                          <h3 className="font-bold text-slate-900 text-sm group-hover:text-blue-600 transition-colors truncate">
-                            {proc.name}
-                          </h3>
+                          <div className="flex items-center space-x-1.5">
+                            <h3 className={`font-bold text-sm transition-colors truncate ${
+                              isEnabled ? 'text-slate-900 group-hover:text-blue-600' : 'text-slate-600'
+                            }`}>
+                              {proc.name}
+                            </h3>
+                          </div>
                           <span className="text-[11px] text-slate-400 truncate block">
                             {proc.shortName || proc.name} · {proc.category}
                           </span>
                         </div>
                       </div>
 
-                      {/* Status Tag */}
-                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 border ${
-                        proc.status === 'PUBLISHED'
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
-                          : 'bg-amber-50 text-amber-700 border-amber-200/80'
-                      }`}>
-                        {proc.status === 'PUBLISHED' ? '已发布' : '草稿'}
-                      </span>
+                      {/* Enable / Disable Interactive Switch & Status Tag */}
+                      <div
+                        className="flex flex-col items-end space-y-1 flex-shrink-0"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => onToggleProcessEnabled(proc.id)}
+                          title={isEnabled ? '当前已启用（聊天中可触发），点击停用' : '当前已停用（聊天中不触发），点击启用'}
+                          className={`inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-all cursor-pointer ${
+                            isEnabled
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                              : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'
+                          }`}
+                        >
+                          <span className={`w-2 h-2 rounded-full ${isEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+                          <span>{isEnabled ? '已启用' : '已停用'}</span>
+                          <div className={`w-6 h-3.5 rounded-full p-0.5 transition-colors flex items-center ${
+                            isEnabled ? 'bg-emerald-600' : 'bg-slate-300'
+                          }`}>
+                            <div className={`w-2.5 h-2.5 rounded-full bg-white shadow-2xs transform transition-transform ${
+                              isEnabled ? 'translate-x-2.5' : 'translate-x-0'
+                            }`} />
+                          </div>
+                        </button>
+                        <span className={`text-[10px] ${isEnabled ? 'text-emerald-600' : 'text-slate-400'}`}>
+                          {isEnabled ? '聊天自动触发中' : '聊天中不触发'}
+                        </span>
+                      </div>
                     </div>
 
                     {/* Description */}
@@ -251,15 +301,26 @@ export const ProcessListView: React.FC<ProcessListViewProps> = ({
                     {/* Trigger Keywords */}
                     {proc.keywords && proc.keywords.length > 0 && (
                       <div className="mb-4">
-                        <div className="text-[10px] text-slate-400 font-medium mb-1.5 flex items-center space-x-1">
-                          <Sparkles size={11} className="text-blue-500" />
-                          <span>意图触发词:</span>
+                        <div className="text-[10px] text-slate-400 font-medium mb-1.5 flex items-center justify-between">
+                          <div className="flex items-center space-x-1">
+                            <Sparkles size={11} className={isEnabled ? 'text-blue-500' : 'text-slate-400'} />
+                            <span>意图触发词:</span>
+                          </div>
+                          {!isEnabled && (
+                            <span className="text-[10px] text-amber-600 font-medium">
+                              已停用，命中关键词不触发
+                            </span>
+                          )}
                         </div>
                         <div className="flex flex-wrap gap-1">
                           {proc.keywords.slice(0, 4).map((kw, i) => (
                             <span 
                               key={i}
-                              className="text-[10px] bg-slate-50 text-slate-600 border border-slate-200 px-1.5 py-0.5 rounded"
+                              className={`text-[10px] border px-1.5 py-0.5 rounded ${
+                                isEnabled
+                                  ? 'bg-slate-50 text-slate-600 border-slate-200'
+                                  : 'bg-slate-100/70 text-slate-400 border-slate-200/70 line-through'
+                              }`}
                             >
                               {kw}
                             </span>
@@ -298,6 +359,19 @@ export const ProcessListView: React.FC<ProcessListViewProps> = ({
                     </div>
 
                     <div className="flex items-center space-x-1" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={() => onToggleProcessEnabled(proc.id)}
+                        title={isEnabled ? '停用该流程（停用后不在聊天中触发）' : '启用该流程（启用后可在聊天中触发）'}
+                        className={`px-2 py-1 rounded-lg text-xs font-medium transition-colors flex items-center space-x-1 cursor-pointer ${
+                          isEnabled
+                            ? 'text-amber-600 hover:bg-amber-50'
+                            : 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100 font-semibold'
+                        }`}
+                      >
+                        <Power size={12} />
+                        <span>{isEnabled ? '停用' : '启用'}</span>
+                      </button>
                       <button
                         onClick={() => onDuplicateProcess(proc.id)}
                         title="复制该流程"

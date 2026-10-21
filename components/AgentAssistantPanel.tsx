@@ -22,9 +22,26 @@ import {
   Building2, 
   Info,
   Loader2,
-  Lock
+  Lock,
+  TrendingUp,
+  Coins,
+  Award,
+  AlertTriangle,
+  Phone,
+  ExternalLink,
 } from 'lucide-react';
 import { chatStore, ChatMessage } from '../services/chatStore';
+import { 
+  WEALTH_RISK_QUESTIONS, 
+  WEALTH_PREFERENCE_QUESTIONS,
+  RISK_EVALUATION_NOTE, 
+  calculateRiskEvaluation,
+  getCustomWealthTierConfigs
+} from './process_management/wealthConsultationData';
+import {
+  isProcessEnabled,
+  PROCESS_STORAGE_KEY
+} from './process_management/defaultProcesses';
 
 export interface AssistantStepData {
   stepIndex: number;
@@ -35,6 +52,7 @@ export interface AssistantStepData {
   // 状态：UNSENT (未发送) | WAITING_CLIENT (已发送，等待客户确认) | COMPLETED (已采纳发送)
   status: 'UNSENT' | 'WAITING_CLIENT' | 'COMPLETED';
   requiresClientConfirm?: boolean; // 是否需要客户确认互动 (若为 false，则采纳发送后直接完成并进入下个步骤)
+  progressiveQuestionFlow?: boolean;
   sentTime?: string;
   confirmedTime?: string;
   confirmedSummary?: string;
@@ -115,16 +133,22 @@ const INITIAL_PROCESS_STEPS: AssistantStepData[] = [
 
 const PRESET_PROCESS_DATABASE = [
   {
+    id: 'proc-card-loss',
+    name: '银行卡挂失',
+    shortName: '银行卡挂失',
+    keywords: ['银行卡不小心丢了', '挂失', '丢卡', '丢了', '丢失', '遗失', '被盗', '解挂', '补卡', '卡丢了', '卡掉了', '钱包丢', '卡不见了'],
+  },
+  {
+    id: 'proc-wealth-manage',
+    name: '理财产品咨询',
+    shortName: '理财产品咨询',
+    keywords: ['理财', '投资', '理财产品', '买理财', '理财推荐', '理财收益', '稳健理财', '基金', '资产配置', '存款还是理财', '理财咨询'],
+  },
+  {
     id: 'proc-feiguimian',
     name: '个人账户非柜面限制',
     shortName: '非柜面限制',
     keywords: ['卡不能用了', '无法转账', '非柜面', '限制非柜面', '限额', '转账不了', '9901', '冻结', '暂停业务'],
-  },
-  {
-    id: 'proc-card-loss',
-    name: '银行卡挂失',
-    shortName: '银行卡挂失',
-    keywords: ['挂失', '丢卡', '被盗', '解挂', '补卡', '卡丢了', '卡掉了', '钱包丢', '卡不见了'],
   },
   {
     id: 'proc-limit-adjust',
@@ -205,6 +229,87 @@ export const INITIAL_CARD_LOSS_STEPS: AssistantStepData[] = [
   }
 ];
 
+export const INITIAL_WEALTH_MANAGE_STEPS: AssistantStepData[] = [
+  // 步骤 1: 引导及风险测评 (需客户确认)
+  {
+    stepIndex: 1,
+    title: '步骤 1: 理财咨询-引导及风险测评',
+    shortTitle: '引导及风险测评',
+    speech: `您好！非常高兴为您提供理财咨询服务。在向您推荐具体的理财产品前，根据《商业银行理财业务监督管理办法》和投资者适当性管理要求，需要先为您进行快速风险承受能力测评。\n\n请您在下方卡片中如实作答测评问卷，真实客观的回答能帮助我们为您精准匹配合适风险等级的产品，保障您的资金安全。`,
+    cardType: 'WEALTH_STEP_1_CARD',
+    status: 'UNSENT',
+    requiresClientConfirm: true,
+    progressiveQuestionFlow: true,
+    cardState: {
+      expLevel: '',
+      lossTolerance: '',
+      assetRatio: '',
+      riskLevel: '',
+      confirmed: false,
+      progressiveQuestionFlow: true
+    }
+  },
+  // 步骤 2: 投资目标与偏好调研 (需客户确认)
+  {
+    stepIndex: 2,
+    title: '步骤 2: 理财咨询-投资目标与偏好调研',
+    shortTitle: '目标与偏好调研',
+    speech: `好的，已知悉您的风险测评结果。为了给您推荐最契合您个人资金规划的理财方案，还需要进一步了解您的资金规划偏好。\n\n请您在下方卡片中勾选您的投资目标、资金使用规划以及期限要求，这将决定推荐产品的锁定期与流动性特征（注：如实填写可帮助推荐更匹配的理财类型）。`,
+    cardType: 'WEALTH_STEP_2_CARD',
+    status: 'UNSENT',
+    requiresClientConfirm: true,
+    progressiveQuestionFlow: true,
+    cardState: {
+      fundUsage: '',
+      fundUsageOther: '',
+      idleDuration: '',
+      returnExpectation: '',
+      maxFloatingLoss: '',
+      pastProducts: [],
+      specialFocus: '',
+      confirmed: false,
+      progressiveQuestionFlow: true
+    }
+  },
+  // 步骤 3: 产品讲解与风险揭示 (无需客户确认)
+  {
+    stepIndex: 3,
+    title: '步骤 3: 理财咨询-产品讲解与风险揭示',
+    shortTitle: '产品匹配与风险揭示',
+    speech: `根据您第一步骤评定的【C2 稳健型】风险等级以及您的资金期限偏好，为您重点推荐匹配我行【乾元金享·季季丰90天】固定收益类稳健理财：\n\n1. 投向结构：主要投向国债、政策性金融债、高等级信用债及同业存单，资产信用等级高；\n2. 收益结构：业绩比较基准为年化 2.85%~3.15%，按季开放分红；\n3. 【最坏情形揭示】：本产品为非保本浮动收益型，不承诺保本及最低收益。在最极端债券违约或严重流动性冲击下，可能出现实际收益低于基准甚至本金发生浮亏的最坏情形。历史业绩不代表未来表现。`,
+    cardType: 'WEALTH_STEP_3_CARD',
+    status: 'UNSENT',
+    requiresClientConfirm: false,
+    cardState: {
+      productTier: 'C2 稳健型',
+      productName: '乾元金享·季季丰90天',
+      benchmark: '年化 2.85% - 3.15%',
+      riskLevel: 'R2 中低风险',
+      assetAllocation: '80%以上投资于国债、政策性金融债、AAA级信用债，20%同业存单，资产信用等级高',
+      returnStructure: '每 90 天为一个开放周期 | 1 元起购，0 申赎费，按季开放分红',
+      worstCaseScenario: '本理财为非保本浮动收益型。最坏情形下，若底层债券发行人发生信用违约或资本市场遭遇严重流动性紧缩，产品净值可能跌破面值，可能发生本金损失或实际收益低于业绩基准的最坏结果。',
+      confirmed: false
+    }
+  },
+  // 步骤 4: 确认理解与后续引导 (无需客户确认)
+  {
+    stepIndex: 4,
+    title: '步骤 4: 理财咨询-确认理解与后续引导',
+    shortTitle: '确认理解与顾问转接',
+    speech: `请问您对刚才介绍的产品投向、收益特征以及最坏情形的风险揭示是否充分理解？若您对该产品的申赎规则或起息时间还有任何疑问，我随时为您进一步说明。\n\n如果您已充分了解并有意向办理，您可以直接通过下方卡片中的直达链接在手机银行中查阅《产品说明书》并自助申购；若您需要更大额度的配置或一对一量身规划，我也为您推荐了具备专业基金与理财销售资质的持牌客户经理联系方式。`,
+    cardType: 'WEALTH_STEP_4_CARD',
+    status: 'UNSENT',
+    requiresClientConfirm: false,
+    cardState: {
+      advisorName: '李雅琪',
+      advisorTitle: '总行卓越财富管理中心 资深财富顾问',
+      licenseId: 'AFM202308119',
+      advisorPhone: '021-95566 转 8219',
+      confirmed: false
+    }
+  }
+];
+
 interface AgentAssistantPanelProps {
   onToast?: (msg: string) => void;
   resetSignal?: number; // 接收来自结束会话的重置信号
@@ -213,10 +318,11 @@ interface AgentAssistantPanelProps {
 
 export default function AgentAssistantPanel({ onToast, resetSignal, onNavigateToMobile }: AgentAssistantPanelProps) {
   const [activeProcesses, setActiveProcesses] = useState<AssistantProcessItem[]>(() => {
-    // 初始如果聊天中有客户触发消息，默认触发；否则为空
+    // 初始如果聊天中有客户触发消息且对应流程处于启用状态，默认触发；停用状态的流程不会在聊天中触发
     const msgs = chatStore.getMessages();
-    const hasLossTrigger = msgs.some(m => m.sender === 'customer' && /挂失|丢卡|被盗|卡丢了|钱包丢|卡不见了|卡掉了|解挂|补卡/i.test(m.content) && !m.content.startsWith('✔'));
-    const hasFeiguimianTrigger = msgs.some(m => m.sender === 'customer' && /卡不能用|无法转账|非柜面|9901|限额/i.test(m.content) && !m.content.startsWith('✔'));
+    const hasLossTrigger = isProcessEnabled('proc-card-loss') && msgs.some(m => m.sender === 'customer' && /挂失|丢卡|被盗|卡.*丢|丢了|丢失|遗失|钱包丢|卡.*不见|卡.*掉|解挂|补卡/i.test(m.content) && !m.content.startsWith('✔'));
+    const hasWealthTrigger = isProcessEnabled('proc-wealth-manage') && msgs.some(m => m.sender === 'customer' && /理财|投资|理财产品|买理财|理财推荐|稳健理财|基金|资产配置|财富管理|想买理财/i.test(m.content) && !m.content.startsWith('✔'));
+    const hasFeiguimianTrigger = isProcessEnabled('proc-feiguimian') && msgs.some(m => m.sender === 'customer' && /卡不能用|无法转账|非柜面|9901|限额/i.test(m.content) && !m.content.startsWith('✔'));
 
     if (hasLossTrigger) {
       const baseSteps = JSON.parse(JSON.stringify(INITIAL_CARD_LOSS_STEPS));
@@ -244,6 +350,52 @@ export default function AgentAssistantPanel({ onToast, resetSignal, onNavigateTo
           shortName: '银行卡挂失',
           statusText: '银行卡挂失流程进行中',
           currentStepTitle: '挂失流程进行中',
+          steps: baseSteps
+        }
+      ];
+    }
+
+    if (hasWealthTrigger) {
+      const baseSteps = JSON.parse(JSON.stringify(INITIAL_WEALTH_MANAGE_STEPS));
+      const step1Confirmed = msgs.find(m => m.sender === 'customer' && m.content.includes('✔ 客户已完成风险承受能力测评'));
+      const step2Confirmed = msgs.find(m => m.sender === 'customer' && m.content.includes('✔ 客户已提交投资目标与偏好调研'));
+      const step3Confirmed = msgs.find(m => m.sender === 'customer' && m.content.includes('✔ 客户已知悉理财产品要素与风险揭示'));
+      const step4Confirmed = msgs.find(m => m.sender === 'customer' && m.content.includes('✔ 客户已确认理解全部内容并获取通道'));
+
+      if (step1Confirmed) {
+        baseSteps[0].status = 'COMPLETED';
+        baseSteps[0].cardState.confirmed = true;
+      }
+      if (step2Confirmed) {
+        baseSteps[1].status = 'COMPLETED';
+        baseSteps[1].cardState.confirmed = true;
+      }
+      if (step3Confirmed) {
+        baseSteps[2].status = 'COMPLETED';
+        baseSteps[2].cardState.confirmed = true;
+      }
+      if (step4Confirmed) {
+        baseSteps[3].status = 'COMPLETED';
+        baseSteps[3].cardState.confirmed = true;
+      }
+
+      const currentTitle = step4Confirmed
+        ? '全流程办理完成'
+        : step3Confirmed
+        ? '步骤 4: 理财咨询-确认理解与后续引导'
+        : step2Confirmed
+        ? '步骤 3: 理财咨询-产品讲解与风险揭示'
+        : step1Confirmed
+        ? '步骤 2: 理财咨询-投资目标与偏好调研'
+        : '步骤 1: 理财咨询-引导及风险测评';
+
+      return [
+        {
+          id: 'proc-wealth-manage',
+          name: '理财产品咨询',
+          shortName: '理财产品咨询',
+          statusText: currentTitle,
+          currentStepTitle: currentTitle,
           steps: baseSteps
         }
       ];
@@ -310,9 +462,11 @@ export default function AgentAssistantPanel({ onToast, resetSignal, onNavigateTo
 
   const [selectedProcessId, setSelectedProcessId] = useState<string>(() => {
     const msgs = chatStore.getMessages();
-    const hasLossTrigger = msgs.some(m => m.sender === 'customer' && /挂失|丢卡|被盗|卡丢了|钱包丢|卡不见了|卡掉了|解挂|补卡/i.test(m.content) && !m.content.startsWith('✔'));
-    const hasFeiguimianTrigger = msgs.some(m => m.sender === 'customer' && /卡不能用|无法转账|非柜面|9901|限额/i.test(m.content) && !m.content.startsWith('✔'));
+    const hasLossTrigger = isProcessEnabled('proc-card-loss') && msgs.some(m => m.sender === 'customer' && /挂失|丢卡|被盗|卡.*丢|丢了|丢失|遗失|钱包丢|卡.*不见|卡.*掉|解挂|补卡/i.test(m.content) && !m.content.startsWith('✔'));
+    const hasWealthTrigger = isProcessEnabled('proc-wealth-manage') && msgs.some(m => m.sender === 'customer' && /理财|投资|理财产品|买理财|理财推荐|稳健理财|基金|资产配置|财富管理|想买理财/i.test(m.content) && !m.content.startsWith('✔'));
+    const hasFeiguimianTrigger = isProcessEnabled('proc-feiguimian') && msgs.some(m => m.sender === 'customer' && /卡不能用|无法转账|非柜面|9901|限额/i.test(m.content) && !m.content.startsWith('✔'));
     if (hasLossTrigger) return 'proc-card-loss';
+    if (hasWealthTrigger) return 'proc-wealth-manage';
     return hasFeiguimianTrigger ? 'proc-feiguimian' : '';
   });
 
@@ -320,9 +474,11 @@ export default function AgentAssistantPanel({ onToast, resetSignal, onNavigateTo
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const [triggerStatus, setTriggerStatus] = useState<string>(() => {
     const msgs = chatStore.getMessages();
-    const hasLossTrigger = msgs.some(m => m.sender === 'customer' && /挂失|丢卡|被盗|卡丢了|钱包丢|卡不见了|卡掉了|解挂|补卡/i.test(m.content) && !m.content.startsWith('✔'));
-    const hasFeiguimianTrigger = msgs.some(m => m.sender === 'customer' && /卡不能用|无法转账|非柜面|9901|限额/i.test(m.content) && !m.content.startsWith('✔'));
-    if (hasLossTrigger) return '分析完毕，触发【借记卡紧急挂失与解挂业务】';
+    const hasLossTrigger = isProcessEnabled('proc-card-loss') && msgs.some(m => m.sender === 'customer' && /挂失|丢卡|被盗|卡.*丢|丢了|丢失|遗失|钱包丢|卡.*不见|卡.*掉|解挂|补卡/i.test(m.content) && !m.content.startsWith('✔'));
+    const hasWealthTrigger = isProcessEnabled('proc-wealth-manage') && msgs.some(m => m.sender === 'customer' && /理财|投资|理财产品|买理财|理财推荐|稳健理财|基金|资产配置|财富管理|想买理财/i.test(m.content) && !m.content.startsWith('✔'));
+    const hasFeiguimianTrigger = isProcessEnabled('proc-feiguimian') && msgs.some(m => m.sender === 'customer' && /卡不能用|无法转账|非柜面|9901|限额/i.test(m.content) && !m.content.startsWith('✔'));
+    if (hasLossTrigger) return '分析完毕，触发【银行卡挂失】';
+    if (hasWealthTrigger) return '分析完毕，触发【理财产品咨询】';
     return hasFeiguimianTrigger ? '分析完毕，触发【个人账户非柜面限制】' : '';
   });
   
@@ -362,9 +518,10 @@ export default function AgentAssistantPanel({ onToast, resetSignal, onNavigateTo
         return;
       }
 
-      // 如果有消息，但当前没有活跃流程，且存在触发关键字的客户消息（例如恢复示例数据或新客户进线）：
-      const lossTriggerMsg = msgs.find(m => m.sender === 'customer' && /挂失|丢卡|被盗|卡丢了|钱包丢|卡不见了|卡掉了|解挂|补卡/i.test(m.content) && !m.content.startsWith('✔'));
-      const feiguimianTriggerMsg = msgs.find(m => m.sender === 'customer' && /卡不能用|无法转账|非柜面|9901|限额/i.test(m.content) && !m.content.startsWith('✔'));
+      // 如果有消息，但当前没有活跃流程，且存在触发关键字的客户消息（停用状态的流程不会在聊天中触发）：
+      const lossTriggerMsg = isProcessEnabled('proc-card-loss') ? msgs.find(m => m.sender === 'customer' && /挂失|丢卡|被盗|卡.*丢|丢了|丢失|遗失|钱包丢|卡.*不见|卡.*掉|解挂|补卡/i.test(m.content) && !m.content.startsWith('✔')) : undefined;
+      const wealthTriggerMsg = isProcessEnabled('proc-wealth-manage') ? msgs.find(m => m.sender === 'customer' && /理财|投资|理财产品|买理财|理财推荐|稳健理财|基金|资产配置|财富管理|想买理财/i.test(m.content) && !m.content.startsWith('✔')) : undefined;
+      const feiguimianTriggerMsg = isProcessEnabled('proc-feiguimian') ? msgs.find(m => m.sender === 'customer' && /卡不能用|无法转账|非柜面|9901|限额/i.test(m.content) && !m.content.startsWith('✔')) : undefined;
 
       if (lossTriggerMsg && activeProcesses.length === 0 && !triggerStatus) {
         setActiveProcesses([
@@ -379,6 +536,19 @@ export default function AgentAssistantPanel({ onToast, resetSignal, onNavigateTo
         ]);
         setSelectedProcessId('proc-card-loss');
         setTriggerStatus('分析完毕，触发【银行卡挂失】');
+      } else if (wealthTriggerMsg && activeProcesses.length === 0 && !triggerStatus) {
+        setActiveProcesses([
+          {
+            id: 'proc-wealth-manage',
+            name: '理财产品咨询',
+            shortName: '理财产品咨询',
+            statusText: '步骤 1: 理财咨询-引导及风险测评',
+            currentStepTitle: '步骤 1: 理财咨询-引导及风险测评',
+            steps: JSON.parse(JSON.stringify(INITIAL_WEALTH_MANAGE_STEPS))
+          }
+        ]);
+        setSelectedProcessId('proc-wealth-manage');
+        setTriggerStatus('分析完毕，触发【理财产品咨询】');
       } else if (feiguimianTriggerMsg && activeProcesses.length === 0 && !triggerStatus) {
         setActiveProcesses([
           {
@@ -394,6 +564,30 @@ export default function AgentAssistantPanel({ onToast, resetSignal, onNavigateTo
         setTriggerStatus('分析完毕，触发【个人账户非柜面限制】');
       }
 
+      // 实时同步客户端理财风险测评问卷(11题)的勾选进度至坐席辅助面板
+      const wealthCard1Msg = [...msgs].reverse().find(m => m.type === 'card' && m.metadata?.cardType === 'WEALTH_STEP_1_CARD');
+      if (wealthCard1Msg && wealthCard1Msg.metadata?.cardData) {
+        const liveCardData = wealthCard1Msg.metadata.cardData;
+        setActiveProcesses(prev => prev.map(p => {
+          if (p.id !== 'proc-wealth-manage') return p;
+          return {
+            ...p,
+            steps: p.steps.map(s => {
+              if (s.stepIndex === 1) {
+                return {
+                  ...s,
+                  cardState: {
+                    ...s.cardState,
+                    ...liveCardData
+                  }
+                };
+              }
+              return s;
+            })
+          };
+        }));
+      }
+
       const latestMsg = msgs[msgs.length - 1];
       if (latestMsg.id === lastProcessedMsgIdRef.current) return;
       lastProcessedMsgIdRef.current = latestMsg.id;
@@ -401,41 +595,65 @@ export default function AgentAssistantPanel({ onToast, resetSignal, onNavigateTo
       if (latestMsg.sender === 'customer') {
         const text = latestMsg.content.trim();
 
-        // 1. 触发流程逻辑（若尚未触发）
-        if (/挂失|丢卡|被盗|卡丢了|钱包丢|卡不见了|卡掉了|解挂|补卡/i.test(text) && !text.startsWith('✔')) {
-          setActiveProcesses(prev => {
-            if (prev.some(p => p.id === 'proc-card-loss')) return prev;
-            return [
-              {
-                id: 'proc-card-loss',
-                name: '银行卡挂失',
-                shortName: '银行卡挂失',
-                statusText: '步骤 1: 挂失业务-卡类型与原因确认',
-                currentStepTitle: '步骤 1: 挂失业务-卡类型与原因确认',
-                steps: JSON.parse(JSON.stringify(INITIAL_CARD_LOSS_STEPS))
-              },
-              ...prev
-            ];
-          });
-          setSelectedProcessId('proc-card-loss');
-          setTriggerStatus('分析完毕，触发【银行卡挂失】');
+        // 1. 触发流程逻辑（若尚未触发且对应流程处于启用状态；停用状态的流程不会在聊天中触发）
+        if (/挂失|丢卡|被盗|卡.*丢|丢了|丢失|遗失|钱包丢|卡.*不见|卡.*掉|解挂|补卡/i.test(text) && !text.startsWith('✔')) {
+          if (isProcessEnabled('proc-card-loss')) {
+            setActiveProcesses(prev => {
+              if (prev.some(p => p.id === 'proc-card-loss')) return prev;
+              return [
+                {
+                  id: 'proc-card-loss',
+                  name: '银行卡挂失',
+                  shortName: '银行卡挂失',
+                  statusText: '步骤 1: 挂失业务-卡类型与原因确认',
+                  currentStepTitle: '步骤 1: 挂失业务-卡类型与原因确认',
+                  steps: JSON.parse(JSON.stringify(INITIAL_CARD_LOSS_STEPS))
+                },
+                ...prev
+              ];
+            });
+            setSelectedProcessId('proc-card-loss');
+            setTriggerStatus('分析完毕，触发【银行卡挂失】');
+            setExpandedSteps({ 1: true, 2: false, 3: false, 4: false });
+          }
+        } else if (/理财|投资|理财产品|买理财|理财推荐|稳健理财|基金|资产配置|财富管理|想买理财/i.test(text) && !text.startsWith('✔')) {
+          if (isProcessEnabled('proc-wealth-manage')) {
+            setActiveProcesses(prev => {
+              if (prev.some(p => p.id === 'proc-wealth-manage')) return prev;
+              return [
+                {
+                  id: 'proc-wealth-manage',
+                  name: '理财产品咨询',
+                  shortName: '理财产品咨询',
+                  statusText: '步骤 1: 理财咨询-引导及风险测评',
+                  currentStepTitle: '步骤 1: 理财咨询-引导及风险测评',
+                  steps: JSON.parse(JSON.stringify(INITIAL_WEALTH_MANAGE_STEPS))
+                },
+                ...prev
+              ];
+            });
+            setSelectedProcessId('proc-wealth-manage');
+            setTriggerStatus('分析完毕，触发【理财产品咨询】');
+          }
         } else if (/卡不能用|无法转账|非柜面|9901|限额/i.test(text) && !text.startsWith('✔')) {
-          setActiveProcesses(prev => {
-            if (prev.some(p => p.id === 'proc-feiguimian')) return prev;
-            return [
-              {
-                id: 'proc-feiguimian',
-                name: '个人账户非柜面限制',
-                shortName: '非柜面限制',
-                statusText: '步骤 1: 非柜面限制-问题定位',
-                currentStepTitle: '步骤 1: 非柜面限制-问题定位',
-                steps: JSON.parse(JSON.stringify(INITIAL_PROCESS_STEPS))
-              },
-              ...prev
-            ];
-          });
-          setSelectedProcessId('proc-feiguimian');
-          setTriggerStatus('分析完毕，触发【个人账户非柜面限制】');
+          if (isProcessEnabled('proc-feiguimian')) {
+            setActiveProcesses(prev => {
+              if (prev.some(p => p.id === 'proc-feiguimian')) return prev;
+              return [
+                {
+                  id: 'proc-feiguimian',
+                  name: '个人账户非柜面限制',
+                  shortName: '非柜面限制',
+                  statusText: '步骤 1: 非柜面限制-问题定位',
+                  currentStepTitle: '步骤 1: 非柜面限制-问题定位',
+                  steps: JSON.parse(JSON.stringify(INITIAL_PROCESS_STEPS))
+                },
+                ...prev
+              ];
+            });
+            setSelectedProcessId('proc-feiguimian');
+            setTriggerStatus('分析完毕，触发【个人账户非柜面限制】');
+          }
         }
 
         // 2. 核心联动：只有当客户自动发送了确认消息，流程卡片才推进到下一个步骤！
@@ -755,12 +973,226 @@ export default function AgentAssistantPanel({ onToast, resetSignal, onNavigateTo
             onToast('✓ 步骤 4 变为已采纳发送状态，全流程办理完成！');
           }
         }
+
+        // --- 理财步骤 1 确认响应：✔ 客户已完成风险承受能力测评 ---
+        else if (text.includes('✔ 客户已完成风险承受能力测评')) {
+          let riskLevelVal = 'C2 稳健型';
+          let expVal = '稳健谨慎型';
+          let toleranceVal = '微小波动';
+          let ratioVal = '20%-50%之间';
+          const lines = text.split('\n');
+          lines.forEach(line => {
+            if (line.includes('评定等级：')) riskLevelVal = line.replace('评定等级：', '').split('（')[0].trim();
+            if (line.includes('投资经验：')) expVal = line.replace('投资经验：', '').trim();
+            if (line.includes('波动容忍：')) toleranceVal = line.replace('波动容忍：', '').trim();
+            if (line.includes('资金占比：')) ratioVal = line.replace('资金占比：', '').trim();
+          });
+
+          const tierConfigs = getCustomWealthTierConfigs();
+          const matchedTier = tierConfigs.find(t => riskLevelVal.includes(t.tierCode) || t.tierLabel === riskLevelVal) || tierConfigs[1] || tierConfigs[0];
+
+          setActiveProcesses(prev => prev.map(p => {
+            if (p.id !== 'proc-wealth-manage') return p;
+            return {
+              ...p,
+              currentStepTitle: '步骤 2: 理财咨询-投资目标与偏好调研',
+              steps: p.steps.map(s => {
+                if (s.stepIndex === 1) {
+                  return {
+                    ...s,
+                    status: 'COMPLETED',
+                    confirmedTime: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }),
+                    confirmedSummary: `测评评级: ${riskLevelVal} | 容忍: ${toleranceVal}`,
+                    cardState: {
+                      ...s.cardState,
+                      riskLevel: riskLevelVal,
+                      expLevel: expVal,
+                      lossTolerance: toleranceVal,
+                      assetRatio: ratioVal,
+                      confirmed: true
+                    }
+                  };
+                }
+                if (s.stepIndex === 3 && matchedTier) {
+                  return {
+                    ...s,
+                    speech: matchedTier.speechTemplate,
+                    cardState: {
+                      ...s.cardState,
+                      productTier: matchedTier.tierLabel,
+                      productName: matchedTier.productName,
+                      benchmark: matchedTier.benchmark,
+                      riskLevel: matchedTier.riskLevel,
+                      assetAllocation: matchedTier.assetAllocation,
+                      returnStructure: matchedTier.returnStructure,
+                      worstCaseScenario: matchedTier.worstCaseScenario
+                    }
+                  };
+                }
+                return s;
+              })
+            };
+          }));
+
+          setExpandedSteps({ 1: false, 2: true, 3: false, 4: false });
+          setTimeout(() => {
+            const el = document.getElementById('assistant-step-card-2');
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }, 150);
+
+          if (onToast) {
+            onToast('✓ 收到客户风险测评确认，步骤 1 变为已采纳发送状态，步骤 2 变为当前待发送状态');
+          }
+        }
+
+        // --- 理财步骤 2 确认响应：✔ 客户已提交投资目标与偏好调研 ---
+        else if (text.includes('✔ 客户已提交投资目标与偏好调研')) {
+          let usageVal = '日常闲钱增值';
+          let idleVal = '3—12个月';
+          let returnVal = '接受小幅波动，争取高于定期存款';
+          let lossVal = '5%以内';
+          let pastVal = '银行存款/国债、货币基金/现金管理类';
+          let focusVal = '';
+          const lines = text.split('\n');
+          lines.forEach(line => {
+            if (line.includes('资金用途：')) usageVal = line.split('资金用途：')[1].trim();
+            if (line.includes('闲置期限：')) idleVal = line.split('闲置期限：')[1].trim();
+            if (line.includes('投资期限：')) idleVal = line.split('投资期限：')[1].trim();
+            if (line.includes('收益期望：')) returnVal = line.split('收益期望：')[1].trim();
+            if (line.includes('浮亏容忍：')) lossVal = line.split('浮亏容忍：')[1].trim();
+            if (line.includes('过往经验：')) pastVal = line.split('过往经验：')[1].trim();
+            if (line.includes('特别关注：')) focusVal = line.split('特别关注：')[1].trim();
+          });
+
+          setActiveProcesses(prev => prev.map(p => {
+            if (p.id !== 'proc-wealth-manage') return p;
+            return {
+              ...p,
+              currentStepTitle: '步骤 3: 理财咨询-产品讲解与风险揭示',
+              steps: p.steps.map(s => {
+                if (s.stepIndex === 2) {
+                  return {
+                    ...s,
+                    status: 'COMPLETED',
+                    confirmedTime: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }),
+                    confirmedSummary: `用途: ${usageVal} | 期限: ${idleVal} | 浮亏容忍: ${lossVal}`,
+                    cardState: {
+                      ...s.cardState,
+                      fundUsage: usageVal.includes('（') ? '其他（请填写）' : usageVal,
+                      fundUsageOther: usageVal.includes('（') ? usageVal.split('（')[1].replace('）', '') : '',
+                      idleDuration: idleVal,
+                      returnExpectation: returnVal,
+                      maxFloatingLoss: lossVal,
+                      pastProducts: pastVal.split('、').filter(Boolean),
+                      specialFocus: focusVal === '无特殊要求' ? '' : focusVal,
+                      confirmed: true
+                    }
+                  };
+                }
+                return s;
+              })
+            };
+          }));
+
+          setExpandedSteps({ 1: false, 2: false, 3: true, 4: false });
+          setTimeout(() => {
+            const el = document.getElementById('assistant-step-card-3');
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }, 150);
+
+          if (onToast) {
+            onToast('✓ 收到客户投资偏好调研，步骤 2 变为已采纳发送状态，步骤 3 变为当前待发送状态');
+          }
+        }
+
+        // --- 理财步骤 3 确认响应：✔ 客户已知悉理财产品要素与风险揭示 ---
+        else if (text.includes('✔ 客户已知悉理财产品要素与风险揭示')) {
+          setActiveProcesses(prev => prev.map(p => {
+            if (p.id !== 'proc-wealth-manage') return p;
+            return {
+              ...p,
+              currentStepTitle: '步骤 4: 理财咨询-确认理解与后续引导',
+              steps: p.steps.map(s => {
+                if (s.stepIndex === 3) {
+                  return {
+                    ...s,
+                    status: 'COMPLETED',
+                    confirmedTime: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }),
+                    confirmedSummary: '客户已知悉产品投向、收益特征及最坏情形说明',
+                    cardState: { ...s.cardState, confirmed: true }
+                  };
+                }
+                return s;
+              })
+            };
+          }));
+
+          setExpandedSteps({ 1: false, 2: false, 3: false, 4: true });
+          setTimeout(() => {
+            const el = document.getElementById('assistant-step-card-4');
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }, 150);
+
+          if (onToast) {
+            onToast('✓ 客户已知悉产品风险，步骤 3 变为已采纳发送状态，步骤 4 变为当前待发送状态');
+          }
+        }
+
+        // --- 理财步骤 4 确认响应：✔ 客户已确认理解全部内容并获取通道 ---
+        else if (text.includes('✔ 客户已确认理解全部内容并获取通道')) {
+          setActiveProcesses(prev => prev.map(p => {
+            if (p.id !== 'proc-wealth-manage') return p;
+            return {
+              ...p,
+              currentStepTitle: '全流程办理完成',
+              statusText: '全流程办理完成',
+              steps: p.steps.map(s => {
+                if (s.stepIndex === 4) {
+                  return {
+                    ...s,
+                    status: 'COMPLETED',
+                    confirmedTime: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }),
+                    confirmedSummary: '已获取持牌顾问名片与手机银行安全通道，咨询圆满办结',
+                    cardState: { ...s.cardState, confirmed: true }
+                  };
+                }
+                return s;
+              })
+            };
+          }));
+
+          setExpandedSteps({ 1: false, 2: false, 3: false, 4: false });
+          if (onToast) {
+            onToast('✓ 步骤 4 变为已采纳发送状态，理财产品咨询全流程圆满办结！');
+          }
+        }
       }
     };
 
     const unsubscribe = chatStore.subscribe(handleChatUpdate);
-    return () => unsubscribe();
-  }, [activeProcesses.length, triggerStatus, onToast]);
+
+    // 监听辅助流程启用/停用状态变更，若当前已触发的流程被停用则立即移除
+    const handleProcessesConfigUpdated = () => {
+      setActiveProcesses(prev => {
+        const next = prev.filter(p => isProcessEnabled(p.id));
+        if (next.length !== prev.length) {
+          if (next.length === 0) {
+            setSelectedProcessId('');
+            setTriggerStatus('');
+          } else if (!next.some(p => p.id === selectedProcessId)) {
+            setSelectedProcessId(next[0].id);
+          }
+        }
+        return next;
+      });
+    };
+    window.addEventListener('bank-processes-updated', handleProcessesConfigUpdated);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener('bank-processes-updated', handleProcessesConfigUpdated);
+    };
+  }, [activeProcesses.length, triggerStatus, onToast, selectedProcessId]);
 
   // 核心业务校验：各步骤的前置发送条件
   // 1. 步骤二可以发送的前提条件是客户点击步骤一的确认按钮
@@ -842,14 +1274,25 @@ export default function AgentAssistantPanel({ onToast, resetSignal, onNavigateTo
     }));
   };
 
-  // 手动搜索添加辅助流程
+  // 手动搜索添加辅助流程（停用状态的流程不会触发）
   const handleOpenProcess = (procId: string) => {
     const meta = PRESET_PROCESS_DATABASE.find(p => p.id === procId);
     if (!meta) return;
 
+    if (!isProcessEnabled(procId)) {
+      if (onToast) {
+        onToast(`⚠️ 流程「${meta.name}」当前处于停用状态，不会触发！请先在辅助流程管理中启用`);
+      }
+      return;
+    }
+
     setActiveProcesses(prev => {
       if (prev.some(p => p.id === procId)) return prev;
-      const stepsTemplate = procId === 'proc-card-loss' ? INITIAL_CARD_LOSS_STEPS : INITIAL_PROCESS_STEPS;
+      const stepsTemplate = procId === 'proc-card-loss' 
+        ? INITIAL_CARD_LOSS_STEPS 
+        : procId === 'proc-wealth-manage' 
+        ? INITIAL_WEALTH_MANAGE_STEPS 
+        : INITIAL_PROCESS_STEPS;
       const firstTitle = stepsTemplate[0].title;
       const newProc: AssistantProcessItem = {
         id: meta.id,
@@ -904,14 +1347,33 @@ export default function AgentAssistantPanel({ onToast, resetSignal, onNavigateTo
       chatStore.sendMessage('agent', step.speech.trim());
     }
 
-    // 2. 发送交互卡片
+    // 检查流程管理配置中该节点是否启用了渐进式逐级确认（默认为 true）
+    let isProgressiveConfig = true;
+    try {
+      const saved = localStorage.getItem('BANK_ASSISTANT_PROCESSES_V2');
+      if (saved) {
+        const list = JSON.parse(saved);
+        const proc = list.find((p: any) => p.id === selectedProcessId);
+        if (proc && proc.nodes) {
+          const node = proc.nodes.find((n: any) => n.nodeCode == step.stepIndex || n.nodeCode === `0${step.stepIndex}` || n.stepNumber === step.stepIndex || n.id.includes(String(step.stepIndex)));
+          if (node && node.progressiveQuestionFlow !== undefined) {
+            isProgressiveConfig = node.progressiveQuestionFlow;
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    // 2. 发送交互卡片（聊天框中的卡片将遵循该节点配置决定是渐进式确认还是平铺展示）
     chatStore.sendMessage('agent', `【流程辅助卡片：${step.title}】`, 'card', {
       cardType: step.cardType,
       step: step.stepIndex,
       cardData: {
         ...step.cardState,
         requiresClientConfirm: needsConfirm,
-        confirmed: !needsConfirm
+        confirmed: !needsConfirm,
+        progressiveQuestionFlow: isProgressiveConfig
       }
     });
 
@@ -1011,13 +1473,32 @@ export default function AgentAssistantPanel({ onToast, resetSignal, onNavigateTo
       chatStore.sendMessage('agent', customSpeech.trim());
     }
 
+    // 检查流程管理配置中该节点是否启用了渐进式逐级确认（默认为 true）
+    let isProgressiveConfig = true;
+    try {
+      const saved = localStorage.getItem('BANK_ASSISTANT_PROCESSES_V2');
+      if (saved) {
+        const list = JSON.parse(saved);
+        const proc = list.find((p: any) => p.id === selectedProcessId);
+        if (proc && proc.nodes) {
+          const node = proc.nodes.find((n: any) => n.nodeCode == step.stepIndex || n.nodeCode === `0${step.stepIndex}` || n.stepNumber === step.stepIndex || n.id.includes(String(step.stepIndex)));
+          if (node && node.progressiveQuestionFlow !== undefined) {
+            isProgressiveConfig = node.progressiveQuestionFlow;
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
+
     chatStore.sendMessage('agent', `【流程辅助卡片：${step.title}】`, 'card', {
       cardType: step.cardType,
       step: step.stepIndex,
       cardData: {
         ...step.cardState,
         requiresClientConfirm: needsConfirm,
-        confirmed: !needsConfirm
+        confirmed: !needsConfirm,
+        progressiveQuestionFlow: isProgressiveConfig
       }
     });
 
@@ -1161,18 +1642,34 @@ export default function AgentAssistantPanel({ onToast, resetSignal, onNavigateTo
               </div>
               <div className="max-h-56 overflow-y-auto space-y-1 mt-1 pr-1 custom-scrollbar">
                 {filteredProcesses.length > 0 ? (
-                  filteredProcesses.map(proc => (
-                    <div
-                      key={proc.id}
-                      onClick={() => handleOpenProcess(proc.id)}
-                      className="p-2 rounded-lg hover:bg-blue-50 hover:text-blue-900 border border-transparent hover:border-blue-200 cursor-pointer transition-all text-left"
-                    >
-                      <div className="font-semibold text-xs text-slate-800 line-clamp-1">{proc.name}</div>
-                      <div className="text-[10px] text-slate-400 mt-0.5">
-                        关键词：{proc.keywords.slice(0, 3).join('、')}
+                  filteredProcesses.map(proc => {
+                    const enabled = isProcessEnabled(proc.id);
+                    return (
+                      <div
+                        key={proc.id}
+                        onClick={() => handleOpenProcess(proc.id)}
+                        className={`p-2 rounded-lg border transition-all text-left ${
+                          enabled
+                            ? 'hover:bg-blue-50 hover:text-blue-900 border-transparent hover:border-blue-200 cursor-pointer'
+                            : 'bg-slate-50 border-slate-100 opacity-60 cursor-not-allowed'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-1">
+                          <div className="font-semibold text-xs text-slate-800 line-clamp-1">{proc.name}</div>
+                          <span className={`text-[10px] px-1.5 py-0.2 rounded font-medium flex-shrink-0 ${
+                            enabled
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : 'bg-slate-200 text-slate-600'
+                          }`}>
+                            {enabled ? '已启用' : '已停用'}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">
+                          关键词：{proc.keywords.slice(0, 3).join('、')}
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 ) : (
                   <div className="text-center py-4 text-[11px] text-slate-400">
                     未找到相关业务流程
@@ -1518,6 +2015,7 @@ export default function AgentAssistantPanel({ onToast, resetSignal, onNavigateTo
                                 </div>
                               </div>
 
+                              {/* 平铺展示第二步：确认挂失原因（坐席辅助端始终平铺展示所有问题） */}
                               <div>
                                 <div className="font-semibold text-blue-700 mb-1 flex justify-between">
                                   <span>第二步 · 确认挂失原因</span>
@@ -1741,6 +2239,385 @@ export default function AgentAssistantPanel({ onToast, resetSignal, onNavigateTo
                             </div>
                           )}
                         </div>
+                      ) : activeProcess?.id === 'proc-wealth-manage' ? (
+                        <div className="space-y-3">
+                          {/* 卡片头部徽标与主体内容 */}
+                          <div className="flex items-center justify-between pb-2 border-b border-blue-100">
+                            <div className="flex items-center space-x-1.5">
+                              <div className="w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center text-[9px] font-bold">
+                                <TrendingUp size={11} />
+                              </div>
+                              <span className="font-bold text-blue-950 text-xs">
+                                {step.stepIndex === 1 && '理财业务 · 引导及风险测评（适当性评测）'}
+                                {step.stepIndex === 2 && '理财业务 · 投资目标与偏好调研（需求深度探查）'}
+                                {step.stepIndex === 3 && '理财业务 · 对应等级产品讲解与合规风险揭示'}
+                                {step.stepIndex === 4 && '理财业务 · 确认理解与持牌顾问及安全通道'}
+                              </span>
+                            </div>
+                            <div className="flex items-center space-x-1.5">
+                              <span className="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full font-medium">坐席只读</span>
+                              <span className="text-[10px] text-blue-600 font-medium">步骤 {step.stepIndex} 卡片</span>
+                            </div>
+                          </div>
+
+                          {/* 步骤 1: 引导及风险测评（坐席端始终平铺展示所有测评问题） */}
+                          {step.stepIndex === 1 && (() => {
+                            const currentAnswers: Record<string, string> = {
+                              ...(step.cardState.answers || {})
+                            };
+                            WEALTH_RISK_QUESTIONS.forEach(q => {
+                              if (step.cardState[q.fieldName] && !currentAnswers[q.fieldName]) {
+                                currentAnswers[q.fieldName] = step.cardState[q.fieldName];
+                              }
+                            });
+                            const answeredCount = WEALTH_RISK_QUESTIONS.filter(q => !!currentAnswers[q.fieldName]).length;
+                            const evalRes = calculateRiskEvaluation(currentAnswers);
+
+                            return (
+                              <div className="space-y-3 text-[11px]">
+                                {/* 合规提示与等级判定参考注释 */}
+                                <div className="p-2.5 bg-amber-50/80 border border-amber-200 rounded-xl text-[10px] text-amber-900 leading-relaxed flex items-start space-x-1.5">
+                                  <Info size={13} className="text-amber-600 mt-0.5 flex-shrink-0" />
+                                  <div>
+                                    <strong>等级判定参考注释：</strong>{RISK_EVALUATION_NOTE}
+                                  </div>
+                                </div>
+
+                                {/* 测评综合评级与进度状态条 */}
+                                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] flex items-center justify-between">
+                                  <div className="flex items-center space-x-2">
+                                    <span className="text-slate-500">当前风险承受能力评级：</span>
+                                    <span className="text-[10px] text-blue-600 font-medium bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                                      进度 {answeredCount}/11 题
+                                    </span>
+                                  </div>
+                                  {step.cardState.riskLevel || answeredCount > 0 ? (
+                                    <span className="font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-md border border-emerald-300">
+                                      {step.cardState.riskLevel || evalRes.tierName}（{step.cardState.totalScore !== undefined ? step.cardState.totalScore : evalRes.totalScore}分）
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-400 text-[10px]">待客户在APP端作答生成</span>
+                                  )}
+                                </div>
+
+                                {/* 11道风险承受能力测评题平铺展示 */}
+                                <div className="space-y-2.5">
+                                  {WEALTH_RISK_QUESTIONS.map(q => {
+                                    const selectedVal = currentAnswers[q.fieldName];
+                                    const matchedOpt = q.options.find(o => o.value === selectedVal);
+                                    return (
+                                      <div key={q.id} className="p-2.5 bg-white border border-slate-200 rounded-xl space-y-1.5">
+                                        <div className="font-semibold text-blue-800 text-[11px] flex items-start justify-between gap-2">
+                                          <span>{q.title}</span>
+                                          {selectedVal ? (
+                                            <span className="text-emerald-600 text-[10px] font-semibold flex-shrink-0">
+                                              ✔ 客户已选: {matchedOpt ? matchedOpt.label.split('（')[0] : selectedVal}
+                                            </span>
+                                          ) : (
+                                            <span className="text-slate-400 text-[10px] flex-shrink-0">待客户在APP中选择</span>
+                                          )}
+                                        </div>
+                                        <div className="flex flex-wrap gap-1.5 pt-0.5">
+                                          {q.options.map(opt => {
+                                            const isChecked = selectedVal === opt.value;
+                                            return (
+                                              <div
+                                                key={opt.id}
+                                                className={`px-2 py-1 rounded-lg border text-[10.5px] select-none cursor-default flex items-center space-x-1.5 ${
+                                                  isChecked
+                                                    ? 'border-blue-500 bg-blue-50 text-blue-950 font-semibold ring-1 ring-blue-200'
+                                                    : 'border-slate-200 bg-slate-50/70 text-slate-600'
+                                                }`}
+                                              >
+                                                <div className={`w-3 h-3 rounded-full border flex items-center justify-center flex-shrink-0 ${
+                                                  isChecked ? 'border-blue-600 bg-blue-600' : 'border-slate-300 bg-white'
+                                                }`}>
+                                                  {isChecked && <div className="w-1 h-1 rounded-full bg-white"></div>}
+                                                </div>
+                                                <span>{opt.label}</span>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })()}
+
+                          {/* 步骤 2: 投资目标与偏好调研（坐席端平铺展示全部 6 道调研问题） */}
+                          {step.stepIndex === 2 && (
+                            <div className="space-y-3 text-[11px]">
+                              {/* 适当性提示条 */}
+                              <div className="p-2.5 bg-blue-50/80 border border-blue-200 rounded-xl text-[10px] text-blue-900 leading-relaxed flex items-start space-x-1.5">
+                                <Info size={13} className="text-blue-600 mt-0.5 flex-shrink-0" />
+                                <div>
+                                  <strong>适当性匹配提示：</strong>需提示客户如实回答以下 6 项资金用途、闲置期限、收益期望、浮亏容忍度及过往投资经验，才能推荐更匹配的理财类型，避免资金期限错配。
+                                </div>
+                              </div>
+
+                              {/* 6 道偏好调研问题列表 */}
+                              <div className="space-y-2.5 max-h-[340px] overflow-y-auto pr-1 custom-scrollbar">
+                                {WEALTH_PREFERENCE_QUESTIONS.map((q) => {
+                                  const rawVal = step.cardState[q.fieldName];
+                                  const hasAnswered = q.type === 'CHECKBOX'
+                                    ? Array.isArray(rawVal) && rawVal.length > 0
+                                    : Boolean(rawVal && String(rawVal).trim());
+
+                                  return (
+                                    <div key={q.id} className="p-2.5 rounded-xl border border-slate-200 bg-white space-y-1.5">
+                                      <div className="flex items-start justify-between gap-2">
+                                        <div className="font-bold text-slate-800 text-[11px] flex items-center gap-1.5">
+                                          <span>{q.title}</span>
+                                          <span className={`px-1.5 py-0.2 rounded text-[9px] font-semibold ${
+                                            q.type === 'CHECKBOX'
+                                              ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                                              : q.type === 'TEXT_INPUT'
+                                              ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                              : 'bg-blue-50 text-blue-700 border border-blue-200'
+                                          }`}>
+                                            {q.type === 'CHECKBOX' ? '多选' : q.type === 'TEXT_INPUT' ? '填写（选填）' : '单选'}
+                                          </span>
+                                        </div>
+                                        {hasAnswered ? (
+                                          <span className="text-emerald-600 text-[10px] font-semibold flex-shrink-0">
+                                            ✔ 已填: {Array.isArray(rawVal) ? rawVal.join('、') : rawVal}
+                                          </span>
+                                        ) : (
+                                          <span className="text-slate-400 text-[10px] flex-shrink-0">
+                                            {q.type === 'TEXT_INPUT' ? '选填项' : '待客户在APP中选择'}
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      {q.options && q.options.length > 0 && (
+                                        <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                                          {q.options.map((opt) => {
+                                            const isChecked = q.type === 'CHECKBOX'
+                                              ? Array.isArray(rawVal) && rawVal.some((u: string) => opt.label.includes(u) || opt.value === u)
+                                              : (rawVal === opt.value || rawVal === opt.label);
+                                            return (
+                                              <div
+                                                key={opt.value}
+                                                className={`px-2 py-1.5 rounded-lg border text-left select-none cursor-default flex items-center space-x-1.5 ${
+                                                  isChecked
+                                                    ? 'border-blue-500 bg-blue-50/80 text-blue-950 font-semibold ring-1 ring-blue-200'
+                                                    : 'border-slate-200 bg-slate-50/60 text-slate-600'
+                                                }`}
+                                              >
+                                                {q.type === 'CHECKBOX' ? (
+                                                  <div className={`w-3 h-3 rounded border flex items-center justify-center flex-shrink-0 ${isChecked ? 'border-blue-600 bg-blue-600' : 'border-slate-300 bg-white'}`}>
+                                                    {isChecked && <Check size={9} className="text-white" />}
+                                                  </div>
+                                                ) : (
+                                                  <div className={`w-3 h-3 rounded-full border flex items-center justify-center flex-shrink-0 ${isChecked ? 'border-blue-600 bg-blue-600' : 'border-slate-300 bg-white'}`}>
+                                                    {isChecked && <div className="w-1.5 h-1.5 rounded-full bg-white"></div>}
+                                                  </div>
+                                                )}
+                                                <span className="text-[10px] leading-tight truncate" title={opt.label}>{opt.label}</span>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      )}
+
+                                      {q.type === 'TEXT_INPUT' && (
+                                        <div className="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-[10px] text-slate-500">
+                                          {hasAnswered ? (
+                                            <span className="text-slate-800 font-medium">客户填写：{String(rawVal)}</span>
+                                          ) : (
+                                            <span>提示语：{q.placeholder || '例如：赎回灵活性、费率、是否可质押等'}</span>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* 步骤 3: 产品讲解与风险揭示（坐席可手动选择不同等级理财产品发送给客户，支持读取流程配置） */}
+                          {step.stepIndex === 3 && (() => {
+                            const tierConfigs = getCustomWealthTierConfigs();
+                            const currentTierLabel = step.cardState.productTier || 'C2 稳健型';
+                            const activeTier = tierConfigs.find(
+                              t => currentTierLabel.includes(t.tierCode) || currentTierLabel.includes(t.riskLevel.split(' ')[0]) || t.tierLabel === currentTierLabel
+                            ) || tierConfigs[1] || tierConfigs[0];
+
+                            return (
+                              <div className="space-y-3 text-[11px]">
+                                {/* 坐席手动切换等级控制栏 */}
+                                <div>
+                                  <div className="font-semibold text-blue-700 mb-1.5 flex items-center justify-between">
+                                    <span>坐席选择推荐理财产品等级（不同等级卡片内容不同）：</span>
+                                  </div>
+                                  <div className="grid grid-cols-5 gap-1.5">
+                                    {tierConfigs.map(tier => {
+                                      const isSelected = activeTier.tierCode === tier.tierCode;
+                                      return (
+                                        <button
+                                          key={tier.tierCode}
+                                          type="button"
+                                          onClick={() => {
+                                            setActiveProcesses(prev => prev.map(p => {
+                                              if (p.id !== 'proc-wealth-manage') return p;
+                                              return {
+                                                ...p,
+                                                steps: p.steps.map(s => {
+                                                  if (s.stepIndex === 3) {
+                                                    return {
+                                                      ...s,
+                                                      speech: tier.speechTemplate,
+                                                      cardState: {
+                                                        ...s.cardState,
+                                                        productTier: tier.tierLabel,
+                                                        productName: tier.productName,
+                                                        benchmark: tier.benchmark,
+                                                        riskLevel: tier.riskLevel,
+                                                        assetAllocation: tier.assetAllocation,
+                                                        returnStructure: tier.returnStructure,
+                                                        worstCaseScenario: tier.worstCaseScenario
+                                                      }
+                                                    };
+                                                  }
+                                                  return s;
+                                                })
+                                              };
+                                            }));
+                                          }}
+                                          className={`py-1.5 px-1 rounded-lg border text-center transition-all cursor-pointer font-medium ${
+                                            isSelected
+                                              ? 'border-blue-600 bg-blue-50 text-blue-950 shadow-xs ring-1 ring-blue-300'
+                                              : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                                          }`}
+                                        >
+                                          <div className="text-[11px] font-bold truncate">{tier.tierCode}</div>
+                                          <div className="text-[9px] text-slate-500 truncate">{tier.tierName}</div>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+
+                                {/* 当前选定等级的产品档案卡片 */}
+                                <div className="p-3 bg-gradient-to-r from-blue-50/80 via-indigo-50/40 to-sky-50/80 rounded-xl border border-blue-200 space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <div>
+                                      <span className="text-[10px] font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-md">
+                                        {step.cardState.productTier || activeTier.tierLabel} · {step.cardState.riskLevel || activeTier.riskLevel}
+                                      </span>
+                                      <h4 className="font-bold text-slate-900 text-xs mt-1">
+                                        {step.cardState.productName || activeTier.productName}
+                                      </h4>
+                                    </div>
+                                    <div className="text-right">
+                                      <div className="text-[10px] text-slate-400">业绩比较基准</div>
+                                      <div className="text-sm font-extrabold text-blue-600 font-mono">
+                                        {step.cardState.benchmark || activeTier.benchmark}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="pt-2 border-t border-blue-100 text-[10px] text-slate-600 space-y-1">
+                                    <div>• <strong>底层投向：</strong>{step.cardState.assetAllocation || activeTier.assetAllocation}</div>
+                                    <div>• <strong>收益与周期：</strong>{step.cardState.returnStructure || activeTier.returnStructure}</div>
+                                  </div>
+                                </div>
+
+                                {/* 核心风险与最坏情形全面揭示（必须揭示，禁止承诺保本） */}
+                                <div className="p-2.5 bg-amber-50/90 border border-amber-300 rounded-xl space-y-1.5 leading-relaxed">
+                                  <div className="flex items-center space-x-1 text-amber-900 font-bold text-[11px]">
+                                    <AlertTriangle size={13} className="text-amber-600 flex-shrink-0" />
+                                    <span>【最坏情形揭示】：必须主动披露可能发生的极端结果</span>
+                                  </div>
+                                  <div className="text-[10px] text-amber-950">
+                                    {step.cardState.worstCaseScenario || activeTier.worstCaseScenario}
+                                  </div>
+                                </div>
+
+                                {/* 严禁承诺收益合规红线 */}
+                                <div className="p-2 bg-red-50/70 border border-red-200 rounded-lg text-[10px] text-red-700 flex items-center justify-between">
+                                  <span className="font-semibold">⚠️ 合规禁令：严禁向客户承诺保本保收益，严格执行资管新规</span>
+                                  <span className="text-[9px] bg-red-100 text-red-800 px-1.5 py-0.2 rounded font-medium">破刚兑</span>
+                                </div>
+                              </div>
+                            );
+                          })()}
+
+                          {/* 步骤 4: 确认理解与后续引导（持牌顾问名片与官方直达安全通道） */}
+                          {step.stepIndex === 4 && (
+                            <div className="space-y-3 text-[11px]">
+                              {/* 确认理解与回访引导提示 */}
+                              <div className="p-2.5 bg-blue-50/80 border border-blue-200 rounded-xl text-[10px] text-blue-900 leading-relaxed flex items-start space-x-1.5">
+                                <CheckCircle2 size={13} className="text-blue-600 mt-0.5 flex-shrink-0" />
+                                <div>
+                                  <strong>确认理解指引：</strong>向客户确认是否真正理解产品收益结构与最坏情形风险；询问是否有未明疑问；引导至手机银行官方安全通道或转接有销售资质的持牌人员。
+                                </div>
+                              </div>
+
+                              {/* 持牌理财顾问名片与联系方式 */}
+                              <div>
+                                <div className="font-semibold text-blue-700 mb-1 flex items-center space-x-1">
+                                  <Phone size={12} className="text-blue-600" />
+                                  <span>具备销售资质的专业持牌理财顾问联系方式：</span>
+                                </div>
+                                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 text-[10px] text-slate-700">
+                                  <div className="flex justify-between items-center pb-1.5 border-b border-slate-200">
+                                    <div>
+                                      <span className="font-bold text-slate-900 text-xs">{step.cardState.advisorName || '李雅琪'}</span>
+                                      <span className="text-[10px] text-blue-700 bg-blue-100 px-1.5 py-0.2 rounded ml-1.5 font-medium">持牌理财规划师</span>
+                                    </div>
+                                    <span className="text-slate-400">总行卓越财富中心</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-slate-500">理财销售资质编号：</span>
+                                    <span className="font-mono font-medium text-slate-800">{step.cardState.licenseId || 'AFM202308119'}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-slate-500">基金从业资格编号：</span>
+                                    <span className="font-mono font-medium text-slate-800">F202100892</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-slate-500">专属服务专线：</span>
+                                    <span className="font-mono font-bold text-blue-600">{step.cardState.advisorPhone || '021-95566 转 8219'}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-slate-500">驻点服务网点：</span>
+                                    <span className="text-slate-800">金融街中心旗舰支行财富管理专区</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* 官方手机银行安全申购通道 */}
+                              <div>
+                                <div className="font-semibold text-blue-700 mb-1 flex items-center space-x-1">
+                                  <ShieldCheck size={12} className="text-blue-600" />
+                                  <span>官方手机银行安全申购通道指引：</span>
+                                </div>
+                                <div className="p-2.5 bg-blue-50/60 border border-blue-200 rounded-xl text-[10px] text-slate-700 space-y-1 leading-relaxed">
+                                  <div>1. <strong>登录路径：</strong>打开手机银行APP → 底部【财富/理财】→ 搜索产品代码【QY90D01】；</div>
+                                  <div>2. <strong>说明书查阅：</strong>在线完整查阅《产品说明书》与《风险揭示书》并进行电子签名；</div>
+                                  <div>3. <strong>投资冷静期：</strong>认购享有 24 小时投资冷静期，冷静期内支持全额自主撤回。</div>
+                                </div>
+                              </div>
+
+                              {/* 法律合规与注意事项 */}
+                              <div>
+                                <div className="font-semibold text-blue-700 mb-1">
+                                  重要合规与法律免责声明（告知客户）：
+                                </div>
+                                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[10px] text-slate-500 space-y-1 leading-relaxed">
+                                  <div>1. 理财非存款、产品有风险、投资须谨慎，商业银行不承诺保本及最低收益；</div>
+                                  <div>2. 业绩比较基准仅供投资参考，不构成任何收益承诺，产品过往业绩不代表未来表现；</div>
+                                  <div>3. 请务必通过手机银行官方渠道认购，切勿将资金转入任何第三方平台或个人账户。</div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       ) : (
                         <>
                       {/* 卡片头部徽标 */}
@@ -1800,6 +2677,7 @@ export default function AgentAssistantPanel({ onToast, resetSignal, onNavigateTo
                             </div>
                           </div>
 
+                          {/* 平铺展示第二步：操作渠道（坐席辅助端始终平铺展示所有问题） */}
                           <div>
                             <div className="font-semibold text-blue-700 mb-1 flex justify-between">
                               <span>第二步 · 您是在哪个渠道操作的？</span>
@@ -1837,6 +2715,7 @@ export default function AgentAssistantPanel({ onToast, resetSignal, onNavigateTo
                             </div>
                           </div>
 
+                          {/* 平铺展示第三步：页面报错提示排查（坐席辅助端始终平铺展示所有问题） */}
                           <div>
                             <div className="font-semibold text-blue-700 mb-1 flex justify-between">
                               <span>第三步 · 页面提示的是哪一条？</span>

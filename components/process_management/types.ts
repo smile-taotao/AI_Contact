@@ -27,6 +27,8 @@ export interface BaseComponentConfig {
   type: CardComponentType;
   title?: string;
   description?: string;
+  dependsOnField?: string;           // 渐进式交互：依赖前置问题的字段名（上一题有值时才解锁展示）
+  showOnLastQuestion?: boolean;      // 按钮组件：是否仅在流转至最后一个客户待确认问题时展示
 }
 
 export interface SpeechComponentConfig extends BaseComponentConfig {
@@ -91,7 +93,7 @@ export interface GuideComponentConfig extends BaseComponentConfig {
 export interface ButtonComponentConfig extends BaseComponentConfig {
   type: 'BUTTON';
   buttonText: string;
-  actionType: 'SUBMIT_CONFIRM' | 'NEXT_STEP' | 'FINISH_FLOW';
+  actionType: 'SUBMIT_CONFIRM' | 'NEXT_STEP' | 'FINISH_FLOW' | 'SEND_CARD';
   hintText?: string;
 }
 
@@ -127,6 +129,34 @@ export interface BranchRule {
   conditionLabel?: string;
 }
 
+// 通用分级选卡 / 多卡片选项配置 (支持任意节点创建多个卡片选项，每个选项可自由组合不同组件)
+export interface WealthTierConfig {
+  tierId: string;                     // 选项标识/简称，如 'C1' | 'OPT-1'
+  tierName: string;                   // 卡片选项名称，如 'C1 谨慎型' | 'C2 稳健型' | 自定义名称
+  components?: FlowCardComponent[];   // 该卡片选项下自由组合的组件列表
+  // 以下为兼容理财产品等预设模板的扩展字段
+  riskLevel?: string;                 // 如 'R1 低风险'
+  productName?: string;               // 推荐产品名称
+  benchmark?: string;                 // 业绩比较基准
+  duration?: string;                  // 运作周期 / 期限
+  minAmount?: string;                 // 起购门槛
+  underlyingAssets?: string;          // 底层资产投向通俗讲解
+  yieldStructure?: string;            // 收益结构与计息说明
+  worstCaseNotice?: string;           // 【必须揭示的最坏情形】
+  speechTemplate?: string;            // 该等级对应的坐席专属推荐话术
+}
+
+export { 
+  DEFAULT_WEALTH_TIER_CONFIGS, 
+  WEALTH_RISK_QUESTIONS, 
+  WEALTH_PREFERENCE_QUESTIONS,
+  RISK_EVALUATION_NOTE,
+  calculateRiskEvaluation,
+  getCustomWealthTierConfigs,
+  ensureTierComponents,
+  syncTierFromComponents
+} from './wealthConsultationData';
+
 // 画布中的步骤节点
 export interface FlowNode {
   id: string;
@@ -139,9 +169,12 @@ export interface FlowNode {
   x: number;                // 画布 X 坐标 (px)
   y: number;                // 画布 Y 坐标 (px)
   requiresClientConfirm: boolean; // 是否需要客户在APP端互动确认
+  progressiveQuestionFlow?: boolean; // 客户端渐进式逐级确认 (选完上一题自动展示下一题，并在最后一题展示确认按钮)
+  showConfirmOnLastQuestionOnly?: boolean; // 确认按钮是否仅在流转至最后一个客户待确认问题时展示
   components: FlowCardComponent[]; // 自由组合的卡片组件列表
   branches?: BranchRule[];         // 分支流转规则列表 (统一在分支流转规则区域配置)
   defaultNextNodeId?: string;      // 默认下一节点 (无条件流转)
+  tierCardConfigs?: WealthTierConfig[]; // 步骤三等场景下：坐席可选择不同等级理财产品卡片的内容配置列表
 }
 
 // 辅助流程主定义
@@ -154,6 +187,7 @@ export interface ProcessDefinition {
   description: string;
   version: string;          // 如 "v2.1"
   status: 'PUBLISHED' | 'DRAFT';
+  enabled?: boolean;        // 是否启用（true: 启用，聊天中可触发；false: 停用，聊天中不会触发）
   updatedAt: string;
   startNodeId: string;      // 流程入口节点 ID
   nodes: FlowNode[];

@@ -2,7 +2,8 @@ import React from 'react';
 import { 
   FlowNode, 
   FlowCardComponent,
-  BranchRule 
+  BranchRule,
+  ensureTierComponents
 } from './types';
 import { 
   MessageSquareText, 
@@ -139,20 +140,59 @@ export const CanvasNodeCard: React.FC<CanvasNodeCardProps> = ({
 
       {/* Node Meta Subbar */}
       <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-[11px]">
-        <span className="text-slate-500 font-medium truncate max-w-[170px]">
+        <span className="text-slate-500 font-medium truncate max-w-[125px]">
           {node.categoryTag || '流程节点'}
         </span>
-        <span className={`px-1.5 py-0.2 rounded text-[10px] font-medium ${
-          node.requiresClientConfirm
-            ? 'bg-amber-50 text-amber-700 border border-amber-200'
-            : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-        }`}>
-          {node.requiresClientConfirm ? '需客户端确认' : '告知型卡片'}
-        </span>
+        <div className="flex items-center space-x-1">
+          {node.tierCardConfigs && node.tierCardConfigs.length > 0 && (
+            <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200" title="支持坐席选择不同等级卡片发送给客户，各等级卡片内容不同">
+              多等级选卡({node.tierCardConfigs.length})
+            </span>
+          )}
+          {node.progressiveQuestionFlow && (
+            <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200" title="渐进式交互：客户选择上一题后自动展开下一题，最后一题展示确认按钮">
+              渐进式确认
+            </span>
+          )}
+          <span className={`px-1.5 py-0.2 rounded text-[10px] font-medium ${
+            node.requiresClientConfirm
+              ? 'bg-amber-50 text-amber-700 border border-amber-200'
+              : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+          }`}>
+            {node.requiresClientConfirm ? '需客户端确认' : '告知型卡片'}
+          </span>
+        </div>
       </div>
 
       {/* Component Stack Preview */}
-      <div className="p-3 space-y-2 max-h-60 overflow-y-auto custom-scrollbar bg-slate-50/50">
+      <div className="p-3 space-y-2 max-h-64 overflow-y-auto custom-scrollbar bg-slate-50/50">
+        {node.tierCardConfigs && node.tierCardConfigs.length > 0 && (
+          <div className="bg-blue-50/70 border border-blue-200 rounded-lg p-2 text-[11px] shadow-2xs space-y-1.5">
+            <div className="flex items-center justify-between text-blue-950 font-bold">
+              <span>分级选卡 / 多卡片选项</span>
+              <span className="text-[10px] text-blue-700 font-mono">
+                {node.tierCardConfigs.length} 个选项
+              </span>
+            </div>
+            <div className="space-y-1">
+              {node.tierCardConfigs.map((t, idx) => {
+                const comps = ensureTierComponents(t);
+                return (
+                  <div
+                    key={`${t.tierId}-${idx}`}
+                    className="text-[10px] px-2 py-1 rounded bg-white text-slate-700 border border-blue-200/80 flex items-center justify-between gap-1"
+                  >
+                    <span className="font-bold text-blue-700 truncate">{t.tierName}</span>
+                    <span className="text-[9.5px] text-slate-500 flex-shrink-0">
+                      {comps.length} 个组件
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {node.components.length === 0 ? (
           <div className="text-center py-4 text-[11px] text-slate-400 border border-dashed border-slate-200 rounded-lg">
             暂无卡片组件，点击左侧物料库添加

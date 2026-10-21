@@ -283,9 +283,57 @@ export const FlowSimulatorModal: React.FC<FlowSimulatorModalProps> = ({
                   </span>
                 </div>
 
+                {/* Progressive mode indication if enabled */}
+                {(() => {
+                  const qComps = currentNode.components.filter(
+                    c => c.type === 'RADIO' || c.type === 'CHECKBOX' || c.type === 'INPUT'
+                  );
+                  const isProgressive = currentNode.progressiveQuestionFlow !== false && qComps.length > 1;
+                  if (!isProgressive) return null;
+
+                  return (
+                    <div className="p-2 bg-blue-50 border border-blue-200 rounded-xl text-[10px] text-blue-800 flex items-center space-x-1.5">
+                      <Sparkles size={12} className="text-blue-600 flex-shrink-0" />
+                      <span>已启用客户端渐进式逐级确认：请选择上一题以解锁后续问题及确认按钮</span>
+                    </div>
+                  );
+                })()}
+
                 {/* Render All Components in Current Node */}
-                {currentNode.components.map((comp) => (
-                  <div key={comp.id} className="space-y-2">
+                {currentNode.components.map((comp) => {
+                  const qComps = currentNode.components.filter(
+                    c => c.type === 'RADIO' || c.type === 'CHECKBOX' || c.type === 'INPUT'
+                  );
+                  const isProgressive = currentNode.progressiveQuestionFlow !== false && qComps.length > 1;
+
+                  // Evaluate visibility in progressive mode
+                  if (isProgressive) {
+                    if (comp.type === 'BUTTON') {
+                      const lastQ = qComps[qComps.length - 1];
+                      if (lastQ) {
+                        const lastQIdx = qComps.length - 1;
+                        const prevQ = qComps[lastQIdx - 1];
+                        const prevField = (prevQ as any)?.fieldName;
+                        const isLastQVisible = lastQ.dependsOnField 
+                          ? !!formState[lastQ.dependsOnField] 
+                          : !!formState[prevField];
+                        if (!isLastQVisible) return null;
+                      }
+                    } else if (comp.type === 'RADIO' || comp.type === 'CHECKBOX' || comp.type === 'INPUT') {
+                      const qIdx = qComps.findIndex(q => q.id === comp.id);
+                      if (qIdx > 0) {
+                        const prevQ = qComps[qIdx - 1];
+                        const prevField = (prevQ as any)?.fieldName;
+                        const isVisible = comp.dependsOnField 
+                          ? !!formState[comp.dependsOnField]
+                          : !!formState[prevField];
+                        if (!isVisible) return null;
+                      }
+                    }
+                  }
+
+                  return (
+                    <div key={comp.id} className="space-y-2 animate-in fade-in slide-in-from-top-1 duration-150">
                     {/* Speech */}
                     {comp.type === 'SPEECH' && (
                       <div className="bg-blue-50/80 border border-blue-200 rounded-xl p-3 space-y-1">
@@ -461,7 +509,8 @@ export const FlowSimulatorModal: React.FC<FlowSimulatorModalProps> = ({
                       </button>
                     )}
                   </div>
-                ))}
+                );
+              })}
 
                 {/* Fallback button if node doesn't have button component */}
                 {!currentNode.components.some(c => c.type === 'BUTTON') && (

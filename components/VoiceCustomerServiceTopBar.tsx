@@ -12,7 +12,6 @@ import {
   Users, 
   Settings, 
   Image as ImageIcon,
-  Keypad
 } from 'lucide-react';
 
 interface VoiceCustomerServiceTopBarProps {
